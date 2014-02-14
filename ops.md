@@ -3,14 +3,14 @@ layout: lcars
 title: Operations Priority Subcast
 ---
 
-| Season	| Episode		| Theme	and Show Notes					| Publication Date 	| Download 			|
+| Season	| Episode		| Theme	and Download					| Publication Date 	| Show Notes		|
 |-----------|---------------|---------------------------------------|-------------------|-------------------|
-| 01		| 01			| [Getting Started][s01e01-n]		 	| 91541.52			| [link][s01e01-dl]	|
-| 01		| 02			| [Q's Winter Wonderland][s01e02-n] 	| 91563.56			| [link][s01e02-dl] |
-| 01		| 03			| [Roleplaying][s01e03-n]			 	| 91586.57			| [link][s01e03-dl] |
-| 01		| 04			| [Breening in the New Year][s01e04-n] 	| 91659.7			| [link][s01e04-dl] |
-| 01		| 05			| [Coming in From the Cold][s01e05-n] 	| 91678.77			| [link][s01e05-dl] |
-| 01		| 06			| [Draining][s01e06-n]					| 91720.45			| [link][s01e06-dl] |
+| 01		| 01			| [Getting Started][s01e01-dl]		 	| 91541.52			| [link][s01e01-n]	|
+| 01		| 02			| [Q's Winter Wonderland][s01e02-dl] 	| 91563.56			| [link][s01e02-n] |
+| 01		| 03			| [Roleplaying][s01e03-dl]			 	| 91586.57			| [link][s01e03-n] |
+| 01		| 04			| [Breening in the New Year][s01e04-dl]	| 91659.7			| [link][s01e04-n] |
+| 01		| 05			| [Coming in From the Cold][s01e05-dl] 	| 91678.77			| [link][s01e05-n] |
+| 01		| 06			| [Draining][s01e06-dl]					| 91720.45			| [link][s01e06-n] |
 
 
 
