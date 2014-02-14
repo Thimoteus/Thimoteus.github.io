@@ -107,6 +107,9 @@ table thead {
   text-align: left;
   font-family: "Eurostile Demi";
 }
+table tr:hover {
+  background: #0d0d0d;
+}
 table th {
   width: 204.8px;
 }
