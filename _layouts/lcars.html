@@ -5,12 +5,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>{{ page.title }}</title>
-	<!-- bootstrap minified css cdn -->
-	{% include bootstrap.css.html %}
-  <!-- syntax highlighting -->
-  {% include syntax.css.html %}
+	<!-- syntax highlighting -->
+	{% include syntax.css.html %}
+	<!-- lcars font -->
+	<link href='/fonts/Swiss' rel='stylesheet' type='text/css'>
 	<!-- custom css -->
-	{% include main.css.html %}
+	<link rel="stylesheet" href="/css/lcars.css">
 
     <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
@@ -22,3 +22,18 @@
 <body>
 <div class="container">
 	<div class="row">
+
+<div class="col-md-12">
+	{% include lcars.head.html %}
+
+	{{ content }}
+
+	{% include lcars.foot.html %}
+</div>
+
+	</div><!-- .row -->
+</div><!-- .container -->
+	{% include mathjax.js.html %}
+	{% include jquery.js.html %}
+</body>
+</html>
