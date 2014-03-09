@@ -1,3 +1,40 @@
+/***********************
+======================
+-Available variables:-
+======================
+
+// Fonts
+@lcarsFontBold : "Eurostile Bold";
+@lcarsFontDemi : "Eurostile Demi";
+@lcarsFontEx2  : "Eurostile Ex2";
+@lcarsFontNorm : "Eurostile Norm";
+
+// Dimensions
+@height          : 30px;
+@pageWidth       : 1024px;
+@navmenuItemWidth: calc(~'@{pageWidth}/5 - 10px/5');
+
+// Colors
+@black       : #000;
+@gray        : #666;
+@lightYellow : #ff9;
+@darkYellow  : #fc6;
+@orange      : #f93;
+@darkPurple  : #646;
+@lightPurple : #c9c;
+@lightBlue   : #9cf;
+@blue        : #36c;
+@darkBlue    : #069;
+
+@headerColor : @blue;
+
+************************/
+/************************
+LCARS LESS file
+Version: 0.1
+Author: Thimoteus
+Contact: thimoteus.github.io
+************************/
 @font-face {
   font-family: "Eurostile Bold";
   src: url("/fonts/eurostileltstd-boldex2-webfont.woff");
@@ -100,6 +137,11 @@ body {
 .col-md-12 {
   position: relative;
 }
+div.lcars-foot {
+  position: absolute;
+  bottom: 0;
+  width: 1024px;
+}
 table {
   width: 100%;
 }
@@ -124,18 +166,13 @@ table th:nth-child(4) {
 table td:nth-child(3) {
   font-size: 0.8em;
 }
-div.lcars-foot {
-  position: absolute;
-  bottom: 0;
-  width: 1024px;
-}
-.nav-menu {
+ul.nav-menu {
   height: 30px;
   list-style-type: none;
-  margin: 40px 0 5px 0;
+  margin: 0 0 5px 0;
   padding: 0;
 }
-.nav-menu li {
+ul.nav-menu li {
   height: 30px;
   float: left;
   background: #ffcc66;
@@ -145,7 +182,7 @@ div.lcars-foot {
   margin: 0 2px;
   z-index: 0;
 }
-.nav-menu li a {
+ul.nav-menu li a {
   color: #000000;
   text-decoration: none;
   display: inline-block;
@@ -153,21 +190,21 @@ div.lcars-foot {
   height: 100%;
   line-height: 40px;
 }
-.nav-menu li a:visited {
+ul.nav-menu li a:visited {
   color: #000000;
 }
-.nav-menu li:first-child {
+ul.nav-menu li:first-child {
   border-bottom-left-radius: 15px;
   border-top-left-radius: 15px;
   margin-left: 0;
 }
-.nav-menu li:last-child {
+ul.nav-menu li:last-child {
   border-bottom-right-radius: 15px;
   border-top-right-radius: 15px;
   margin-right: 0;
   width: calc(calc(1024px/5 - 10px/5) - 10px);
   padding-right: 10px;
 }
-.nav-menu li:hover {
+ul.nav-menu li:hover {
   background: #ff9933;
 }
