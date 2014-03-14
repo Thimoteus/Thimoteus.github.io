@@ -28,17 +28,21 @@ styles: ops.css
 
 Latest podcast: [Polaron Opposites][s01e09-dl]
 
+<audio src="https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e09.mp3" controls>
+   Your browser does not support the audio element.
+</audio>
+
 <!-- References -->
 
-[s01e01-dl]: https://mega.co.nz/#!YBllRR4C!9uShCseRcrcEJM-UFV0eiwskTUfBOoEqks7gPUly0uY
-[s01e02-dl]: https://mega.co.nz/#!lUUlQCTB!dKvzNqSEcmEXRhnA6e5a1VlZC-Javv8UVWmc4QGnOAE
-[s01e03-dl]: https://mega.co.nz/#!cVkRQLpL!zlLUcvHpXiBSXv7F04wq-IwsrkVQSvfTOHTIS3_ZrlE
-[s01e04-dl]: https://mega.co.nz/#!BR0giRKC!5kbCmsNo-k5D4Y9R_hDe7FszMntrCuF27wPaqd20ix4
-[s01e05-dl]: https://mega.co.nz/#!4d01iBBZ!AtSeImIe6hxKw-CmcEW2e1rPnxH0Zo68jioonGEp-Hc
-[s01e06-dl]: https://mega.co.nz/#!YQtk3ITC!Fh5PzQkfrZrttjimNrxDQ7t3nLCDr7j3crV-YhY2Kak
-[s01e07-dl]: https://mega.co.nz/#!NVMySI6R!gk5mfTrQKvDmzVpSXXPjfmt-BodBlIKzMB9qv2yO2Dg
-[s01e08-dl]: https://mega.co.nz/#!YVsyhSAb!DzEWHOHNmt8p880d7RMsEPAgViB3ZsbK0b7ALfb2wZk
-[s01e09-dl]: https://mega.co.nz/#!9I9V0Yqb!_klaBJ1_Ki6wjTB4BfWloF1nCMTFu1AvjFUhlUktYDo
+[s01e01-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e01.mp3
+[s01e02-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e02.mp3
+[s01e03-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e03.mp3
+[s01e04-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e04.mp3
+[s01e05-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e05.mp3
+[s01e06-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e06.mp3
+[s01e07-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e07.mp3
+[s01e08-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e08.mp3
+[s01e09-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e09.mp3
 
 [s01e01-n]: http://pastebin.com/nfshNXfW
 [s01e02-n]: http://pastebin.com/Gjtn8krm
