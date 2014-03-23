@@ -14,6 +14,7 @@ styles: ops.css
 
 | Season	| Episode		| Theme	and Download					| Publication Date 	| Show Notes		|
 |-----------|---------------|---------------------------------------|-------------------|-------------------|
+| 01		| 10			| [Contested][s01e10-dl]			 	| 91829.22			| [link][s01e10-n] 	|
 | 01		| 09			| [Polaron Opposites][s01e09-dl]		| 91788.58			| [link][s01e09-n] 	|
 | 01		| 08			| [Carriers][s01e08-dl]					| 91772.16			| [link][s01e08-n] 	|
 | 01		| 07			| [Bridge Officers][s01e07-dl]			| 91744.8			| [link][s01e07-n] 	|
@@ -26,9 +27,9 @@ styles: ops.css
 
 - - -
 
-Latest podcast: [Polaron Opposites][s01e09-dl]
+Latest podcast: [Contested][s01e10-dl]
 
-<audio src="https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e09.mp3" controls>
+<audio src="https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e10.mp3" controls>
    Your browser does not support the audio element.
 </audio>
 
@@ -43,6 +44,7 @@ Latest podcast: [Polaron Opposites][s01e09-dl]
 [s01e07-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e07.mp3
 [s01e08-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e08.mp3
 [s01e09-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e09.mp3
+[s01e10-dl]: https://googledrive.com/host/0BzIk2_Rnx-GKRzhnSFBmUEZpMDA/OPS-s01e10.mp3
 
 [s01e01-n]: http://pastebin.com/nfshNXfW
 [s01e02-n]: http://pastebin.com/Gjtn8krm
@@ -53,3 +55,4 @@ Latest podcast: [Polaron Opposites][s01e09-dl]
 [s01e07-n]: #
 [s01e08-n]: #
 [s01e09-n]: http://pastebin.com/Hp6rKH8t
+[s01e10-n]: #
