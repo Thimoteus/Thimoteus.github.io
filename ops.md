@@ -55,4 +55,4 @@ Latest podcast: [Contested][s01e10-dl]
 [s01e07-n]: #
 [s01e08-n]: #
 [s01e09-n]: http://pastebin.com/Hp6rKH8t
-[s01e10-n]: #
+[s01e10-n]: http://pastebin.com/QVaDnUnz
