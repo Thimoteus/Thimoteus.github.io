@@ -1,1 +1,0 @@
-Hosted on [github](www.github.com) with [jekyll](http://jekyllrb.com/).
