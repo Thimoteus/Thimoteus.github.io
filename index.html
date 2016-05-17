@@ -1,57 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>The Natural Order of Things</title>
-    <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-    <h1>Projects</h1>
-    <hr>
-    <ul>
+---
+layout: default
+---
+
+<div class="home">
+
+  <h1 class="page-heading">Posts</h1>
+
+  <ul class="post-list">
+    {% for post in site.posts %}
       <li>
-        <a href="http://www.github.com/thimoteus/clicker-builder">clicker-builder</a> &mdash; An incremental/idle clicking game, in the spirit of Cookie Clicker. Makes heavy use of lenses to access and update game state. Written using Halogen, a purely functional counterpart to tools like React.
+        <h2>
+          <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+        </h2>
       </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/literate-purescript">literate-purescript</a> &mdash; A transpiler that enables literate programming for purescript. Source code is written where the code (instead of the comments, as is the norm) is marked as special, and comments are not. It can parse code marked with surrounding ticks, blocks indented by four lines, and code preceded by Bird tracks. It is self-hosted, meaning it all the source files are written in markdown, then transpiled to purescript source code, and then built to a new executable.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-simple-parser">purescript-simple-parser</a> &mdash; a simple parsing combinator library mostly inspired by Graham Hutton and Erik Meijer's <em>Monadic Parser Combinators</em>. Features include backtracking-by-default, several optimized combinators, and a module for many combinators that will work with different parser representations.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-hugenums">purescript-hugenums</a> &mdash; a Purescript library for correct computing with arbitrarily large or small numbers. Numbers are represented in big-endian form as a product of a) a list of digits, and b) the position of the decimal. Addition is done using a grade-school algorithm, but multiplication is implemented using Karatsuba's algorithm.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-difflists">purescript-difflists</a> &mdash; a Purescript library for using <em>difference lists</em>, which have constant-time appending on the left- and right-hand sides, but transform to ordinary Cons lists in linear time.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-simple-request">purescript-simple-request</a> &mdash; a Purescript wrapper around parts of node's http and https module, focusing on making requests. Uses purescript-options to set options in the request.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-reddit-api">purescript-reddit-api</a> &mdash; a Purescript library for interacting with <a href="https://www.reddit.com/dev/api">Reddit's API</a> via purescript-simple-request. Uses a monad transformer stack of StateT, EnvT and Aff. Automatically handles OAuth login, token renewal and rate limiting.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-symbolic-differentiation">purescript-symbolic-differentiation</a> &mdash; a Purescript library for symbolically computing derivatives of "real"-valued functions. Supports taking the Taylor expansion of a function to some finite number of terms.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-markov-chains">purescript-markov-chains</a> &mdash; a Purescript library for creating Markov chains from arbitrary orderable data structures, with extra features for strings.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/purescript-mmorph">purescript-mmorph</a> &mdash; a port of Haskell's <a href="https://github.com/Gabriel439/Haskell-MMorph-Library">MMorph</a> library for working with different monad transformer stacks.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/SandScript">SandScript</a> &mdash; a lisp interpreter that runs on top of Node. This is the result of going through <a href="https://en.wikibooks.org/wiki/Write_Yourself_a_Scheme_in_48_Hours">Write Yourself a Scheme</a>, but adapting it for use in Purescript instead of Haskell. Differences in particular include Purescript's evaluation strategy, which matches Javascripts, making it necessary to change the way recursive S-expressions are parsed.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/jaraw">JARAW</a> &mdash; an earlier library for interacting with Reddit's API, but more suitable for use with Javascript. Written with Iced Coffeescript.
-      </li>
-      <li>
-        <a href="http://www.github.com/thimoteus/raadb">RAADB</a> &mdash; a library for using <b>R</b>eddit <b>a</b>s <b>a d</b>ata<b>b</b>ase, written in Javascript. Intended as a database replacement for hobbyist projects only.
-      </li>
-    </ul>
-    <hr>
-    <a href="http://www.github.com/thimoteus">Github</a>
-    <br>
-    <a href="http://thimoteus.github.io/countdown">Countdown</a>
-  </body>
-</html>
+    {% endfor %}
+  </ul>
+
+</div>
