@@ -52,8 +52,8 @@ data Unop = Negate | Not
 data Lit = Int Int | Bool Boolean
 ```
 
-Expressions will be made up of literals, variables, and operators of either one
-or two expressions.
+Expressions will be made up of literals, variables, and operators of arity 1 or
+2.
 
 Binary operators will be addition, subtraction, multiplication, division, order
 comparison, equality and boolean disjunction. One can imagine how to extend this
@@ -174,7 +174,7 @@ token = makeTokenParser languageDef
 ```
 
 That's it for this module. The `<|>` combinator for parsers says to use the left
-parser first, and if that fails then the second. If you wanted to extend this
+parser first, and if that fails then the right. If you wanted to extend this
 language definition to a more advanced language, you might want to have a more
 involved definition. The `commentStart` and `commentEnd` fields are for
 multi-line comments, denoting the starting and ending markers. In Purescript for
@@ -249,9 +249,7 @@ bool = reserved "true" $> Bool true <|> reserved "false" $> Bool false
 The `int` parser uses the `<$>` combinator, which is an infix alias for `map`.
 All it does is map the `Int` type constructor to the integer parser from our
 token record. The integer parser is one of the parsers we get just from the
-language definition, and in fact it doesn't rely on any of the options we gave
-in our language definition -- we essentially get the ability to parse integers
-"for free".
+language definition.
 
 The `bool` parser is a tad more complicated. We've already met the alt
 combinator `<|>`, so the only new things here are how we're using `reserved` and
@@ -264,7 +262,7 @@ reserved words has occurred or not. It's up to us to determine what to do when
 it has, which is where `$>` comes in. Its type signature is
 `forall f. Functor f => f a -> b -> f b`. Specialized to our `P` type synonym,
 it has the signature `forall a b. P a -> b -> P b`. All it does is parse an `a`,
-ignore it, then return a `b` inside a parser.
+ignore success, then return a `b` inside a parser.
 
 We're somewhat lucky in that the operators play well with each other, without
 needing to use parentheses. Sometimes the precedence won't work out like you're
@@ -277,7 +275,7 @@ lit :: P Expr
 lit = Lit <$> int <|> Lit <$> bool
 ```
 
-Variables are deceptively simple to deal with:
+Variables are simple to deal with:
 
 ```haskell
 var :: P Expr
@@ -297,8 +295,8 @@ term p = parens p <|> lit <|> var
 
 The sole argument to `term` represents the "overall" `Expr` parser. Here you can
 see that using parentheses lines up with how we think of them. That is, our
-`term` parser will look for expressions in parentheses first, and only if it
-doesn't see a parenthesis will it try to parse a literal value, then a variable.
+`term` parser will look for expressions in parentheses first, and only if the
+parentheses parser fails will it try to parse a literal value, then a variable.
 
 Before we get to the ultimate `Expr` parser, we have to deal with operators.
 We do so through the use of an operator table:
@@ -382,11 +380,11 @@ but first a detour through error-handling, since our parser might fail.
 
 ## Error handling
 
-Error handling in Purescript can be done purely. This means we'll treat errors
-as just normal values, there won't be anything exceptional about them. We've
-already considered that our parser might fail. We might also get a type mismatch
-when trying to evaluate an expression, or we might reference a variable that
-doesn't exist. We'll also include a general-purpose error:
+Error handling in Purescript can be done purely (whodathunkit?). This means
+we'll treat errors as just normal values, there won't be anything exceptional
+about them. We've already considered that our parser might fail. We might also
+get a type mismatch when trying to evaluate an expression, or we might reference
+a variable that doesn't exist. We'll also include a general-purpose error:
 
 ```haskell
 module Error where
@@ -700,8 +698,8 @@ There are three cases to consider when parsing a command: Either
 
 1. We get a parse error, in which case we return the given environment and show
   the error,
-2. we bind a name to an expression. If the expression can't be evaluated
-  correctly, we return the same environment and show the error. Otherwise, we
+2. we bind a name to an expression. If the expression encounters an error while
+  evaluating, we return the same environment and show the error. Otherwise, we
   either update or insert the binding to our environment, update the prompt
   to show a pretty representation of the current bound variables, and return
   the new environment with the message that the new variable has been
@@ -713,7 +711,7 @@ There are three cases to consider when parsing a command: Either
 pprint :: Env -> String
 pprint e =
   let list = toList e
-      untupled = map (\ (Tuple key val) -> k <> " := " <> show v) list
+      untupled = map (\ (Tuple key val) -> key <> " := " <> show val) list
    in intercalate ", " untupled
 ```
 
@@ -763,5 +761,5 @@ Assuming we've done everything correctly, we can test our calculator:
     > x*x + y*y = z*z
     true
     x := 3, y := 4, z := 5
-    > 
+    >
 
