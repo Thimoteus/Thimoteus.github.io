@@ -2,7 +2,7 @@
 layout: post
 title:  "Coding a simple calculator in Purescript"
 permalink: /:title.html
-categories: jekyll update
+categories: purescript
 ---
 
 I feel like everyone should write a toy programming language at least once
@@ -205,7 +205,7 @@ import Control.Lazy (fix)
 import Data.Functor (($>))
 import Data.Identity (Identity)
 
-import Text.Parsing.Parser (Parser), runParser)
+import Text.Parsing.Parser (Parser, runParser)
 import Text.Parsing.Parser.Combinators (try)
 import Text.Parsing.Parser.Expr (OperatorTable, Assoc(..), Operator(..), buildExprParser)
 ```
