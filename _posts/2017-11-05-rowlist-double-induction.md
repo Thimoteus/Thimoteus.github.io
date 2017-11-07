@@ -27,7 +27,7 @@ Each of which will print out a different help string. Moreover, in addition to
 this depth of command chains, there's also breadth -- you can call `stack run --help`
 for example, as another first-level command.
 
-So I needed to have a way of dealing with arbitrary depth and breadth.
+So there needs to be a way of dealing with arbitrary depth and breadth.
 
 # Everything's a row
 
@@ -45,7 +45,7 @@ type SomeRow =
 ```
 
 In this case, there's a maximum depth of 2 and maximum breadth of 3. So what if
-I tried matching the actual command path (like `config set`) against a row-type
+we tried matching the actual command path (like `config set`) against a row-type
 that holds all possible help strings?
 
 We could do something like this:
