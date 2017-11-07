@@ -30,17 +30,17 @@ So I needed to have a way of dealing with arbitrary depth and breadth.
 
 # Everything's a row
 
-It turns out records can also have depth and breadth:
+It turns out rows can also have depth and breadth:
 
 ```purescript
-type SomeRecord =
-  { x :: Int
+type SomeRow =
+  ( x :: Int
   , y ::
-    { y1 :: String
+    ( y1 :: String
     , y2 :: Boolean
-    }
+    )
   , z :: Void -> Unit
-  }
+  )
 ```
 
 In this case, there's a maximum depth of 2 and maximum breadth of 3. So what if
@@ -95,7 +95,7 @@ class RLHelp
 ```
 
 Since the rowlist is supposed to be equivalent to the row, we have the fun-dep
-`rl -> row`. In particular, since we don't have `row` on the left-hand side of
+`rl -> row`. Since we don't have `row` on the left-hand side of
 a fun-dep, we can use row literals in our instances all we want. Noice!
 
 ```purescript
@@ -132,7 +132,7 @@ the rowlist's tail and the row's tail.
 
 The fourth line is an atypical inductive hypothesis: This is induction on the
 depth of the row. So if the instance we're currently looking at is at depth
-`n`, the fourth line requires us to have an instance at depth `n + 1` for the
+`n`, the fourth line requires us to have an instance at depth `n + 1` through the
 current node.
 
 Line five expresses the relationship between the current node and the ones at
@@ -187,7 +187,7 @@ we can't give back any help text, so we return `Nothing`.
 
 # Final thoughts
 
-* This technique seems powerful. It's essentially a folding a tree, but
+* This technique seems powerful. It's essentially folding a tree, but
 done with type-level machinery instead of a normal ADT.
 * Double-induction on trees isn't unheard of in math -- for example, proving
 cut-elimination for classical logic sequent trees requires dealing with both
