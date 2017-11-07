@@ -13,10 +13,11 @@ libraries for dealing with args (there's a wrapper around "yargs" but I prefer n
 to have to `npm i somelib` whenever I can avoid it).
 
 So, I reluctantly began writing my own general(ish)-purpose command-line option
-parsing library. Once I realized I didn't have a story for parsing commands, I
-thought for a while about how to deal with a `--help` flag being called on different
-commands. `--help` is unusual in that it tends to be shared among all commands,
-so you can for example run all of the following:
+parsing [library](https://github.com/Thimoteus/purescript-optlicative). Once I
+realized I didn't have a story for parsing commands, I thought for a while about
+how to deal with a `--help` flag being called on different commands. `--help` is
+unusual in that it tends to be shared among all commands, so you can for example
+run all of the following:
 
 * `stack --help`
 * `stack config --help`
