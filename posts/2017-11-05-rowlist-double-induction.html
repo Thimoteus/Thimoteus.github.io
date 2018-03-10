@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - RowToList, records as trees, and double-induction</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>RowToList, records as trees, and double-induction</h1>
+            <article>
+    <section class="header">
+        Posted on November  5, 2017
+        
+    </section>
+    <section>
+        <h1 id="intro-you-can-skip-this">Intro (you can skip this)</h1>
+<p>About two weeks ago, I wanted to write a little command-line program with PureScript. I didn’t feel like hand-writing another arg-parser, and there weren’t any pure PS libraries for dealing with args (there’s a wrapper around “yargs” but I prefer not to have to <code>npm i somelib</code> whenever I can avoid it).</p>
+<p>So, I reluctantly began writing my own general(ish)-purpose command-line option parsing <a href="https://github.com/Thimoteus/purescript-optlicative">library</a>. Once I realized I didn’t have a story for parsing commands, I thought for a while about how to deal with a <code>--help</code> flag being called on different commands. <code>--help</code> is unusual in that it tends to be shared among all commands, so you can for example run all of the following:</p>
+<ul>
+<li><code>stack --help</code></li>
+<li><code>stack config --help</code></li>
+<li><code>stack config set --help</code></li>
+</ul>
+<p>Each of which will print out a different help string. Moreover, in addition to this depth of command chains, there’s also breadth – you can call <code>stack run --help</code> for example, as another first-level command.</p>
+<p>So there needs to be a way of dealing with arbitrary depth and breadth.</p>
+<h1 id="everythings-a-row">Everything’s a row</h1>
+<p>It turns out rows can also have depth and breadth:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">type</span> <span class="dt">SomeRow</span> <span class="fu">=</span></a>
+<a class="sourceLine" id="cb1-2" data-line-number="2">  (<span class="ot"> x ::</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3">  ,<span class="ot"> y ::</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">    (<span class="ot"> y1 ::</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">    ,<span class="ot"> y2 ::</span> <span class="dt">Boolean</span></a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">    )</a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">  ,<span class="ot"> z ::</span> <span class="dt">Void</span> <span class="ot">-&gt;</span> <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb1-8" data-line-number="8">  )</a></code></pre></div>
+<p>In this case, there’s a maximum depth of 2 and maximum breadth of 3. So what if we tried matching the actual command path (like <code>config set</code>) against a row-type that holds all possible help strings?</p>
+<p>We could do something like this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="kw">type</span> <span class="dt">StackExample</span> <span class="fu">=</span></a>
+<a class="sourceLine" id="cb2-2" data-line-number="2">  (<span class="ot"> config ::</span> <span class="dt">Help</span> <span class="st">&quot;some help message&quot;</span></a>
+<a class="sourceLine" id="cb2-3" data-line-number="3">    (<span class="ot"> set ::</span> <span class="dt">Help</span> <span class="st">&quot;some other help message&quot;</span> () )</a>
+<a class="sourceLine" id="cb2-4" data-line-number="4">  ,<span class="ot"> run ::</span> <span class="dt">Help</span> <span class="st">&quot;third help message&quot;</span> ()</a>
+<a class="sourceLine" id="cb2-5" data-line-number="5">  )</a></code></pre></div>
+<h1 id="classy-command-parsing">Classy command parsing</h1>
+<p>The output for our help-message-returning-function should be <code>Maybe String</code>, since it’s possible that the command path isn’t reflected by the row. We should also already have access to a list of commands. Finally, we’ll need a way to pass around information about the row so the compiler can do fun things with it:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">class</span> <span class="dt">Commando</span> (<span class="ot">row ::</span> <span class="fu">#</span> <span class="dt">Type</span>) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2"><span class="ot">  commando ::</span> forall proxy<span class="fu">.</span> proxy row <span class="ot">-&gt;</span> <span class="dt">List</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> <span class="dt">String</span></a></code></pre></div>
+<p>So far so good. We’ll also delegate all the heavy-lifting to a class that works on <code>RowList</code>s, so there’s only one actual instance of <code>Commando</code>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> commandoInst ::</span></a>
+<a class="sourceLine" id="cb4-2" data-line-number="2">  ( <span class="dt">RowToList</span> row list</a>
+<a class="sourceLine" id="cb4-3" data-line-number="3">  , <span class="dt">RLHelp</span> list row</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">  ) <span class="ot">=&gt;</span> <span class="dt">Commando</span> row <span class="kw">where</span></a>
+<a class="sourceLine" id="cb4-5" data-line-number="5">    commando _ xs <span class="fu">=</span> rlHelp (<span class="dt">RLProxy</span><span class="ot"> ::</span> <span class="dt">RLProxy</span> list) (<span class="dt">RProxy</span><span class="ot"> ::</span> <span class="dt">RProxy</span> row) xs</a></code></pre></div>
+<p>[Note: at this point, I’m not even sure if I needed both <code>RLProxy</code> and <code>RProxy</code>. But using both gives the desired results, so I’ll stick with it.]</p>
+<p>So the “real” class is <code>RLHelp</code>, which has one method <code>rlHelp</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="kw">class</span> <span class="dt">RLHelp</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2">  (<span class="ot">rl ::</span> <span class="dt">RowList</span>)</a>
+<a class="sourceLine" id="cb5-3" data-line-number="3">  (<span class="ot">row ::</span> <span class="fu">#</span> <span class="dt">Type</span>)</a>
+<a class="sourceLine" id="cb5-4" data-line-number="4">  <span class="fu">|</span> rl <span class="ot">-&gt;</span> row</a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">  <span class="kw">where</span></a>
+<a class="sourceLine" id="cb5-6" data-line-number="6"><span class="ot">    rlHelp ::</span> <span class="dt">RLProxy</span> rl <span class="ot">-&gt;</span> <span class="dt">RProxy</span> row <span class="ot">-&gt;</span> <span class="dt">List</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> <span class="dt">String</span></a></code></pre></div>
+<p>Since the rowlist is supposed to be equivalent to the row, we have the fun-dep <code>rl -&gt; row</code>. Since we don’t have <code>row</code> on the left-hand side of a fun-dep, we can use row literals in our instances all we want. Noice!</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> basisRlHelp ::</span> <span class="dt">RLHelp</span> <span class="dt">Nil</span> () <span class="kw">where</span></a>
+<a class="sourceLine" id="cb6-2" data-line-number="2">  rlHelp _ _ _ <span class="fu">=</span> <span class="dt">Nothing</span></a></code></pre></div>
+<p>This part’s easy: If the row is empty, there are no possible commands to match, hence no command help, so we just give <code>Nothing</code>.</p>
+<p>The trickier part will, of course, be the <code>Cons</code> case. I’ll paste it in then go through it piece-by-piece:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> ihRlHelp ::</span></a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">  ( <span class="dt">IsSymbol</span> k</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">  , <span class="dt">IsSymbol</span> h</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4">  , <span class="dt">RLHelp</span> tail rowtail</a>
+<a class="sourceLine" id="cb7-5" data-line-number="5">  , <span class="dt">RLHelp</span> list' row'</a>
+<a class="sourceLine" id="cb7-6" data-line-number="6">  , <span class="dt">RowCons</span> k (<span class="dt">Help</span> h row') rowtail row</a>
+<a class="sourceLine" id="cb7-7" data-line-number="7">  , <span class="dt">RowLacks</span> k rowtail</a>
+<a class="sourceLine" id="cb7-8" data-line-number="8">  , <span class="dt">RowToList</span> rowtail tail</a>
+<a class="sourceLine" id="cb7-9" data-line-number="9">  , <span class="dt">RowToList</span> row (<span class="dt">Cons</span> k (<span class="dt">Help</span> h row') tail)</a>
+<a class="sourceLine" id="cb7-10" data-line-number="10">  , <span class="dt">RowToList</span> row' list'</a>
+<a class="sourceLine" id="cb7-11" data-line-number="11">  ) <span class="ot">=&gt;</span> <span class="dt">RLHelp</span> (<span class="dt">Cons</span> k (<span class="dt">Help</span> h row') tail) row <span class="kw">where</span> <span class="fu">...</span></a></code></pre></div>
+<p>The first two lines for the superclass are easy, they just say that <code>k</code> (representing the field name, or “key”) and <code>h</code> (the help text) are <code>Symbol</code>s.</p>
+<p>The third line is the typical inductive hypothesis that accompanies instances making use of <code>RowToList</code>: It requires that the instance already exist for the rowlist’s tail and the row’s tail.</p>
+<p>The fourth line is an atypical inductive hypothesis: This is induction on the depth of the row. So if the instance we’re currently looking at is at depth <code>n</code>, the fourth line requires us to have an instance at depth <code>n + 1</code> through the current node.</p>
+<p>Line five expresses the relationship between the current node and the ones at the next-depth: it says our key has a type in which the next-level row appears, and that this together with the rest of the row (the row tail, as it were) make up the entirety of the row that’s still to be computed.</p>
+<p>Six merely expresses the fact that our current node’s key doesn’t appear elsewhere at the current level.</p>
+<p>Seven requires the row’s tail to be equivalent to the rowlist’s tail, eight, the whole row to the whole tail, and nine the next-level row to the next-level tail.</p>
+<p>Finally, the actual instance applies to the whole rowlist (expressed in terms of its head and tail) and the whole row.</p>
+<h1 id="the-implementation">The implementation</h1>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb8-1" data-line-number="1">rlHelp _ _ args<span class="fu">@</span>(x <span class="fu">:</span> <span class="dt">Nil</span>) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb8-2" data-line-number="2">  <span class="kw">if</span> x <span class="fu">==</span> reflectSymbol (<span class="dt">SProxy</span><span class="ot"> ::</span> <span class="dt">SProxy</span> k)</a>
+<a class="sourceLine" id="cb8-3" data-line-number="3">    <span class="kw">then</span> <span class="dt">Just</span> (reflectSymbol (<span class="dt">SProxy</span><span class="ot"> ::</span> <span class="dt">SProxy</span> h))</a>
+<a class="sourceLine" id="cb8-4" data-line-number="4">    <span class="kw">else</span> rlHelp (<span class="dt">RLProxy</span><span class="ot"> ::</span> <span class="dt">RLProxy</span> tail) (<span class="dt">RProxy</span><span class="ot"> ::</span> <span class="dt">RProxy</span> rowtail) args</a>
+<a class="sourceLine" id="cb8-5" data-line-number="5">rlHelp _ _ args<span class="fu">@</span>(x <span class="fu">:</span> xs) <span class="fu">=</span></a>
+<a class="sourceLine" id="cb8-6" data-line-number="6">  <span class="kw">if</span> x <span class="fu">==</span> reflectSymbol (<span class="dt">SProxy</span><span class="ot"> ::</span> <span class="dt">SProxy</span> k)</a>
+<a class="sourceLine" id="cb8-7" data-line-number="7">    <span class="kw">then</span> rlHelp (<span class="dt">RLProxy</span><span class="ot"> ::</span> <span class="dt">RLProxy</span> list') (<span class="dt">RProxy</span><span class="ot"> ::</span> <span class="dt">RProxy</span> row') xs</a>
+<a class="sourceLine" id="cb8-8" data-line-number="8">    <span class="kw">else</span> rlHelp (<span class="dt">RLProxy</span><span class="ot"> ::</span> <span class="dt">RLProxy</span> tail) (<span class="dt">RProxy</span><span class="ot"> ::</span> <span class="dt">RProxy</span> rowtail) args</a>
+<a class="sourceLine" id="cb8-9" data-line-number="9">rlHelp _ _ _ <span class="fu">=</span> <span class="dt">Nothing</span></a></code></pre></div>
+<p>The first case is when there’s exactly one command left in the command path. If this final command matches the node-in-focus’s key, we’ve found the final match. Then we can return the help text given, and all is well.</p>
+<p>If it doesn’t match, we need to recurse on the tail – the rest of the nodes at the same level. In this case, we keep the singleton command path intact.</p>
+<p>The second case is when there’s more than one command left. That means we can’t have possibly reached the end of the algorithm.</p>
+<p>If the head of the command path matches the key of our node, then we recurse into the node – we go to the next deepest level, passing only the tail of the command path.</p>
+<p>If it doesn’t, we keep the command path intact but recurse sideways into the tail.</p>
+<p>The last case is when we’ve exhausted the command path. If we had found a match it would have appeared by virtue of the first case, but since it didn’t that means the command entered does not match with any path through the row. In that case we can’t give back any help text, so we return <code>Nothing</code>.</p>
+<h1 id="final-thoughts">Final thoughts</h1>
+<ul>
+<li>This technique seems powerful. It’s essentially folding a tree, but done with type-level machinery instead of a normal ADT.</li>
+<li>Double-induction on trees isn’t unheard of in math – for example, proving cut-elimination for classical logic sequent trees requires dealing with both depth and breadth. It’s also a lot more tedious than what we just did, despite the lack of compiler to yell at you when you mess up.</li>
+<li>Type-level recursion schemes, anyone?</li>
+</ul>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

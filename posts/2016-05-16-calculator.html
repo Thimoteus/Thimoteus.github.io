@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Coding a simple calculator in Purescript</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Coding a simple calculator in Purescript</h1>
+            <article>
+    <section class="header">
+        Posted on May 16, 2016
+        
+    </section>
+    <section>
+        <p>I feel like everyone should write a toy programming language at least once in their lives. If you do, you might get drawn into the rabbit hole of adding features, syntax sugar, a compiler, a REPL, etc. etc., and along the way you’ll probably learn a lot about language design.</p>
+<p>This post isn’t about implementing a toy programming language, but rather something a little simpler: a calculator. While it might not be Turing complete, it touches on many of the same concepts (lexing, parsing, type checking, evaluating, etc). And in the process, we’ll become familiar with a lot of what makes Purescript’s ecosystem so great, from parser combinators, to pure and functional error handling, to pattern matching and more.</p>
+<h2 id="preliminaries">Preliminaries</h2>
+<p>I’ll assume you have Purescript, bower and pulp installed. Let’s start by making a new project directory:</p>
+<pre><code>&gt; mkdir calculator &amp;&amp; cd calculator</code></pre>
+<p>Then we’ll initialize the project with some defaults:</p>
+<pre><code>&gt; pulp init
+&gt; bower i --save purescript-parsing purescript-maps purescript-simple-repl</code></pre>
+<h2 id="language-definition">Language definition</h2>
+<p>We’ll start by defining our language’s abstract syntax tree:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">module</span> <span class="dt">Syntax</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb3-3" data-line-number="3"><span class="kw">import</span> <span class="dt">Prelude</span></a>
+<a class="sourceLine" id="cb3-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb3-5" data-line-number="5"><span class="kw">data</span> <span class="dt">Expr</span> <span class="fu">=</span> <span class="dt">Lit</span> <span class="dt">Lit</span></a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">          <span class="fu">|</span> <span class="dt">Var</span> <span class="dt">Name</span></a>
+<a class="sourceLine" id="cb3-7" data-line-number="7">          <span class="fu">|</span> <span class="dt">Binop</span> <span class="dt">Binop</span> <span class="dt">Expr</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-8" data-line-number="8">          <span class="fu">|</span> <span class="dt">Unop</span> <span class="dt">Unop</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb3-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb3-10" data-line-number="10"><span class="kw">type</span> <span class="dt">Name</span> <span class="fu">=</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb3-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb3-12" data-line-number="12"><span class="kw">data</span> <span class="dt">Binop</span> <span class="fu">=</span> <span class="dt">Add</span> <span class="fu">|</span> <span class="dt">Sub</span> <span class="fu">|</span> <span class="dt">Mul</span> <span class="fu">|</span> <span class="dt">Div</span> <span class="fu">|</span> <span class="dt">Less</span> <span class="fu">|</span> <span class="dt">Eql</span> <span class="fu">|</span> <span class="dt">Or</span></a>
+<a class="sourceLine" id="cb3-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb3-14" data-line-number="14"><span class="kw">data</span> <span class="dt">Unop</span> <span class="fu">=</span> <span class="dt">Negate</span> <span class="fu">|</span> <span class="dt">Not</span></a>
+<a class="sourceLine" id="cb3-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb3-16" data-line-number="16"><span class="kw">data</span> <span class="dt">Lit</span> <span class="fu">=</span> <span class="dt">Int</span> <span class="dt">Int</span> <span class="fu">|</span> <span class="dt">Bool</span> <span class="dt">Boolean</span></a></code></pre></div>
+<p>Expressions will be made up of literals, variables, and operators of arity 1 or 2.</p>
+<p>Binary operators will be addition, subtraction, multiplication, division, order comparison, equality and boolean disjunction. One can imagine how to extend this to include other operators.</p>
+<p>Unary operators will be numeric and boolean negation.</p>
+<p>Literals are just integers and booleans, represented by Purescript <code>Int</code>s and <code>Boolean</code>s.</p>
+<p>While we’re at it, let’s define a way to turn expressions to <code>String</code>s:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> showExpr ::</span> <span class="dt">Show</span> <span class="dt">Expr</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb4-2" data-line-number="2">  show (<span class="dt">Lit</span> l) <span class="fu">=</span> show l</a>
+<a class="sourceLine" id="cb4-3" data-line-number="3">  show (<span class="dt">Var</span> n) <span class="fu">=</span> n</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">  show (<span class="dt">Binop</span> op e1 e2) <span class="fu">=</span> show e1 <span class="fu">&lt;&gt;</span> show op <span class="fu">&lt;&gt;</span> show e2</a>
+<a class="sourceLine" id="cb4-5" data-line-number="5">  show (<span class="dt">Unop</span> op e1) <span class="fu">=</span> show op <span class="fu">&lt;&gt;</span> show e1</a>
+<a class="sourceLine" id="cb4-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb4-7" data-line-number="7"><span class="kw">instance</span><span class="ot"> showBinop ::</span> <span class="dt">Show</span> <span class="dt">Binop</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb4-8" data-line-number="8">  show <span class="dt">Add</span> <span class="fu">=</span> <span class="st">&quot; + &quot;</span></a>
+<a class="sourceLine" id="cb4-9" data-line-number="9">  show <span class="dt">Sub</span> <span class="fu">=</span> <span class="st">&quot; - &quot;</span></a>
+<a class="sourceLine" id="cb4-10" data-line-number="10">  show <span class="dt">Mul</span> <span class="fu">=</span> <span class="st">&quot;*&quot;</span></a>
+<a class="sourceLine" id="cb4-11" data-line-number="11">  show <span class="dt">Div</span> <span class="fu">=</span> <span class="st">&quot;/&quot;</span></a>
+<a class="sourceLine" id="cb4-12" data-line-number="12">  show <span class="dt">Less</span> <span class="fu">=</span> <span class="st">&quot; &lt; &quot;</span></a>
+<a class="sourceLine" id="cb4-13" data-line-number="13">  show <span class="dt">Eql</span> <span class="fu">=</span> <span class="st">&quot; = &quot;</span></a>
+<a class="sourceLine" id="cb4-14" data-line-number="14">  show <span class="dt">Or</span> <span class="fu">=</span> <span class="st">&quot; || &quot;</span></a>
+<a class="sourceLine" id="cb4-15" data-line-number="15"></a>
+<a class="sourceLine" id="cb4-16" data-line-number="16"><span class="kw">instance</span><span class="ot"> showUnop ::</span> <span class="dt">Show</span> <span class="dt">Unop</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb4-17" data-line-number="17">  show <span class="dt">Negate</span> <span class="fu">=</span> <span class="st">&quot;-&quot;</span></a>
+<a class="sourceLine" id="cb4-18" data-line-number="18">  show <span class="dt">Not</span> <span class="fu">=</span> <span class="st">&quot;~&quot;</span></a>
+<a class="sourceLine" id="cb4-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb4-20" data-line-number="20"><span class="kw">instance</span><span class="ot"> showLit ::</span> <span class="dt">Show</span> <span class="dt">Lit</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb4-21" data-line-number="21">  show (<span class="dt">Int</span> n) <span class="fu">=</span> show n</a>
+<a class="sourceLine" id="cb4-22" data-line-number="22">  show (<span class="dt">Bool</span> b) <span class="fu">=</span> show b</a></code></pre></div>
+<p>these are typeclass instances. I like to think of <code>Show</code> as a predicate on types, so that if a type has a <code>Show</code> instance, it can be <code>show</code>n: that is, turned into a <code>String</code>. The type of <code>show</code> is <code>forall a. Show a =&gt; String</code>. In other words, <code>show</code> takes a single argument, and as long as the type of that argument has the correct instance, it will typecheck.</p>
+<p>We can also derive equality for a custom type, and since it’s a one-liner, why not?</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb5-1" data-line-number="1">derive <span class="kw">instance</span><span class="ot"> eqExpr ::</span> <span class="dt">Eq</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2">derive <span class="kw">instance</span><span class="ot"> eqBinop ::</span> <span class="dt">Eq</span> <span class="dt">Binop</span></a>
+<a class="sourceLine" id="cb5-3" data-line-number="3">derive <span class="kw">instance</span><span class="ot"> eqUnop ::</span> <span class="dt">Eq</span> <span class="dt">Unop</span></a>
+<a class="sourceLine" id="cb5-4" data-line-number="4">derive <span class="kw">instance</span><span class="ot"> eqLit ::</span> <span class="dt">Eq</span> <span class="dt">Lit</span></a></code></pre></div>
+<p>Now we’ll define the commands we’ll be able to give our calculator:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Cmd</span> <span class="fu">=</span> <span class="dt">Assign</span> <span class="dt">Name</span> <span class="dt">Expr</span> <span class="fu">|</span> <span class="dt">Eval</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb6-3" data-line-number="3">infix <span class="dv">0</span> <span class="dt">Assign</span> as <span class="fu">:=</span></a></code></pre></div>
+<p>The only new concept here is that of a custom infix operator. We’ll use the <code>:=</code> symbol to both denote assignment in our source files, and when we’re interacting with the calculator. We’ve defined it here to not associate either way (we could have written <code>infixr</code> or <code>infixl</code> instead) and to bind weakly, at precedence 0.</p>
+<p>Finally we’ll define a function to get a textual representation of a literal’s type:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="ot">typeof ::</span> <span class="dt">Lit</span> <span class="ot">-&gt;</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">typeof (<span class="dt">Int</span> _) <span class="fu">=</span> <span class="st">&quot;int&quot;</span></a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">typeof (<span class="dt">Bool</span> _) <span class="fu">=</span> <span class="st">&quot;bool&quot;</span></a></code></pre></div>
+<p>When pattern matching on type constructors that take one argument or more, it’s important to use parentheses: if we had instead written <code>typeof Int _ = ...</code> the compiler would yell at us, because it understands this as saying that <code>typeof</code> takes two arguments, but the type signature we gave it only has one. Also, the underscore here denotes that we don’t care what the argument is. They’re useful for drawing attention to the important parts of a pattern match: in our case, the constructor used.</p>
+<h2 id="lexing-and-parsing">Lexing and parsing</h2>
+<h3 id="the-lexer">The lexer</h3>
+<p>The <code>purescript-parsing</code> package is unsurpassed for its ability to let us deal with tokens instead of text. We can essentially give it a specification for our language and it’ll give us back a host of parser combinators that make it easy to parse our language declaratively:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb8-1" data-line-number="1"><span class="kw">module</span> <span class="dt">Token</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb8-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3"><span class="kw">import</span> <span class="dt">Control.Alt</span> ((&lt;|&gt;))</a>
+<a class="sourceLine" id="cb8-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb8-5" data-line-number="5"><span class="kw">import</span> <span class="dt">Text.Parsing.Parser.Token</span> (<span class="dt">LanguageDef</span>, <span class="dt">GenLanguageDef</span>(..), <span class="dt">TokenParser</span>, makeTokenParser, letter, alphaNum)</a>
+<a class="sourceLine" id="cb8-6" data-line-number="6"><span class="kw">import</span> <span class="dt">Text.Parsing.Parser.String</span> (char, oneOf)</a>
+<a class="sourceLine" id="cb8-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb8-8" data-line-number="8"><span class="ot">languageDef ::</span> <span class="dt">LanguageDef</span></a>
+<a class="sourceLine" id="cb8-9" data-line-number="9">languageDef <span class="fu">=</span> <span class="dt">LanguageDef</span></a>
+<a class="sourceLine" id="cb8-10" data-line-number="10">  { commentStart<span class="fu">:</span> <span class="st">&quot;&quot;</span></a>
+<a class="sourceLine" id="cb8-11" data-line-number="11">  , commentEnd<span class="fu">:</span> <span class="st">&quot;&quot;</span></a>
+<a class="sourceLine" id="cb8-12" data-line-number="12">  , commentLine<span class="fu">:</span> <span class="st">&quot;#&quot;</span></a>
+<a class="sourceLine" id="cb8-13" data-line-number="13">  , nestedComments<span class="fu">:</span> false</a>
+<a class="sourceLine" id="cb8-14" data-line-number="14">  , identStart<span class="fu">:</span> letter</a>
+<a class="sourceLine" id="cb8-15" data-line-number="15">  , identLetter<span class="fu">:</span> alphaNum <span class="fu">&lt;|&gt;</span> char <span class="ch">'\''</span></a>
+<a class="sourceLine" id="cb8-16" data-line-number="16">  , opStart<span class="fu">:</span> oneOf [<span class="ch">'-'</span>, <span class="ch">':'</span>, <span class="ch">'+'</span>, <span class="ch">'*'</span>, <span class="ch">'/'</span>, <span class="ch">'|'</span>, <span class="ch">'='</span>, <span class="ch">'~'</span>, <span class="ch">'&lt;'</span>]</a>
+<a class="sourceLine" id="cb8-17" data-line-number="17">  , opLetter<span class="fu">:</span> oneOf [<span class="ch">'='</span>, <span class="ch">'|'</span>]</a>
+<a class="sourceLine" id="cb8-18" data-line-number="18">  , reservedNames<span class="fu">:</span> [<span class="st">&quot;true&quot;</span>, <span class="st">&quot;false&quot;</span>]</a>
+<a class="sourceLine" id="cb8-19" data-line-number="19">  , reservedOpNames<span class="fu">:</span> [<span class="st">&quot;:=&quot;</span>, <span class="st">&quot;+&quot;</span>, <span class="st">&quot;-&quot;</span>, <span class="st">&quot;*&quot;</span>, <span class="st">&quot;/&quot;</span>, <span class="st">&quot;||&quot;</span>, <span class="st">&quot;=&quot;</span>, <span class="st">&quot;~&quot;</span>, <span class="st">&quot;&lt;&quot;</span>]</a>
+<a class="sourceLine" id="cb8-20" data-line-number="20">  , caseSensitive<span class="fu">:</span> true</a>
+<a class="sourceLine" id="cb8-21" data-line-number="21">}</a>
+<a class="sourceLine" id="cb8-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb8-23" data-line-number="23"><span class="ot">token ::</span> <span class="dt">TokenParser</span></a>
+<a class="sourceLine" id="cb8-24" data-line-number="24">token <span class="fu">=</span> makeTokenParser languageDef</a></code></pre></div>
+<p>That’s it for this module. The <code>&lt;|&gt;</code> combinator for parsers says to use the left parser first, and if that fails then the right. If you wanted to extend this language definition to a more advanced language, you might want to have a more involved definition. The <code>commentStart</code> and <code>commentEnd</code> fields are for multi-line comments, denoting the starting and ending markers. In Purescript for example, those are <code>{-</code> and <code>-}</code>.</p>
+<p>Any field with <code>Start</code> in it denotes which characters that parser is allowed to start with, and the corresponding <code>Letter</code> parser denotes which characters the tail can take.</p>
+<p><code>reservedNames</code> holds which strings are reserved keywords, like <code>module</code> or <code>case</code> in Purescript.</p>
+<h3 id="the-parser">The parser</h3>
+<p>The parser is one of the most exciting modules to write, but it’s also exceedingly easy to make a mistake, even with Purescript’s strong type system.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="kw">module</span> <span class="dt">Parser</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb9-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb9-3" data-line-number="3"><span class="kw">import</span> <span class="dt">Prelude</span></a>
+<a class="sourceLine" id="cb9-4" data-line-number="4"><span class="kw">import</span> <span class="dt">Token</span> (token)</a>
+<a class="sourceLine" id="cb9-5" data-line-number="5"><span class="kw">import</span> <span class="dt">Syntax</span> (<span class="dt">Lit</span>(..), <span class="dt">Expr</span>(..), <span class="dt">Binop</span>(..), <span class="dt">Unop</span>(..), <span class="dt">Cmd</span>(..), (:=))</a>
+<a class="sourceLine" id="cb9-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb9-7" data-line-number="7"><span class="kw">import</span> <span class="dt">Control.Alt</span> ((&lt;|&gt;))</a>
+<a class="sourceLine" id="cb9-8" data-line-number="8"><span class="kw">import</span> <span class="dt">Control.Lazy</span> (fix)</a>
+<a class="sourceLine" id="cb9-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb9-10" data-line-number="10"><span class="kw">import</span> <span class="dt">Data.Functor</span> (($&gt;))</a>
+<a class="sourceLine" id="cb9-11" data-line-number="11"><span class="kw">import</span> <span class="dt">Data.Identity</span> (<span class="dt">Identity</span>)</a>
+<a class="sourceLine" id="cb9-12" data-line-number="12"></a>
+<a class="sourceLine" id="cb9-13" data-line-number="13"><span class="kw">import</span> <span class="dt">Text.Parsing.Parser</span> (<span class="dt">Parser</span>, runParser)</a>
+<a class="sourceLine" id="cb9-14" data-line-number="14"><span class="kw">import</span> <span class="dt">Text.Parsing.Parser.Combinators</span> (try)</a>
+<a class="sourceLine" id="cb9-15" data-line-number="15"><span class="kw">import</span> <span class="dt">Text.Parsing.Parser.Expr</span> (<span class="dt">OperatorTable</span>, <span class="dt">Assoc</span>(..), <span class="dt">Operator</span>(..), buildExprParser)</a></code></pre></div>
+<p>Since the general parser type is sort of complicated, we’ll use a type synonym to make our lives easier:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="kw">type</span> <span class="dt">P</span> a <span class="fu">=</span> <span class="dt">Parser</span> <span class="dt">String</span> a</a></code></pre></div>
+<p>This is actually a nested type synonym, since <code>Parser</code> is itself a synonym. All our parsers from here on out will be of the type <code>P a</code> for some <code>a</code>.</p>
+<p>We’ll start by extracting some of the pre-made parsers from our token module:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="ot">parens ::</span> forall a<span class="fu">.</span> <span class="dt">P</span> a <span class="ot">-&gt;</span> <span class="dt">P</span> a</a>
+<a class="sourceLine" id="cb11-2" data-line-number="2">parens <span class="fu">=</span> token<span class="fu">.</span>parens</a>
+<a class="sourceLine" id="cb11-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb11-4" data-line-number="4"><span class="ot">reservedOp ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">P</span> <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb11-5" data-line-number="5">reservedOp <span class="fu">=</span> token<span class="fu">.</span>reservedOp</a>
+<a class="sourceLine" id="cb11-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb11-7" data-line-number="7"><span class="ot">reserved ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">P</span> <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb11-8" data-line-number="8">reserved <span class="fu">=</span> token<span class="fu">.</span>reserved</a>
+<a class="sourceLine" id="cb11-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb11-10" data-line-number="10"><span class="ot">identifier ::</span> <span class="dt">P</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb11-11" data-line-number="11">identifier <span class="fu">=</span> token<span class="fu">.</span>identifier</a></code></pre></div>
+<p>Literals are some of the most basic parsers we have:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb12-1" data-line-number="1"><span class="ot">int ::</span> <span class="dt">P</span> <span class="dt">Lit</span></a>
+<a class="sourceLine" id="cb12-2" data-line-number="2">int <span class="fu">=</span> <span class="dt">Int</span> <span class="fu">&lt;$&gt;</span> token<span class="fu">.</span>integer</a>
+<a class="sourceLine" id="cb12-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb12-4" data-line-number="4"><span class="ot">bool ::</span> <span class="dt">P</span> <span class="dt">Lit</span></a>
+<a class="sourceLine" id="cb12-5" data-line-number="5">bool <span class="fu">=</span> reserved <span class="st">&quot;true&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Bool</span> true <span class="fu">&lt;|&gt;</span> reserved <span class="st">&quot;false&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Bool</span> false</a></code></pre></div>
+<p>The <code>int</code> parser uses the <code>&lt;$&gt;</code> combinator, which is an infix alias for <code>map</code>. All it does is map the <code>Int</code> type constructor to the integer parser from our token record. The integer parser is one of the parsers we get just from the language definition.</p>
+<p>The <code>bool</code> parser is a tad more complicated. We’ve already met the alt combinator <code>&lt;|&gt;</code>, so the only new things here are how we’re using <code>reserved</code> and <code>$&gt;</code>. We already defined <code>reserve</code> above, and it’s actually another parser we got from the lexer. It checks for whichever argument we give it and returns a <code>Unit</code>. This is because the lexer isn’t sure how we’re using reserved words – we might use them purely as syntactic constructs, or they might represent values, or something else – so the lexer can only tell us whether one of these reserved words has occurred or not. It’s up to us to determine what to do when it has, which is where <code>$&gt;</code> comes in. Its type signature is <code>forall f. Functor f =&gt; f a -&gt; b -&gt; f b</code>. Specialized to our <code>P</code> type synonym, it has the signature <code>forall a b. P a -&gt; b -&gt; P b</code>. All it does is parse an <code>a</code>, ignore success, then return a <code>b</code> inside a parser.</p>
+<p>We’re somewhat lucky in that the operators play well with each other, without needing to use parentheses. Sometimes the precedence won’t work out like you’re hoping and you need to parenthesize your expression to get things right.</p>
+<p>A <code>Lit</code> isn’t an <code>Expr</code>, but it can be embedded via the <code>Lit</code> type constructor:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb13-1" data-line-number="1"><span class="ot">lit ::</span> <span class="dt">P</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb13-2" data-line-number="2">lit <span class="fu">=</span> <span class="dt">Lit</span> <span class="fu">&lt;$&gt;</span> int <span class="fu">&lt;|&gt;</span> <span class="dt">Lit</span> <span class="fu">&lt;$&gt;</span> bool</a></code></pre></div>
+<p>Variables are simple to deal with:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb14-1" data-line-number="1"><span class="ot">var ::</span> <span class="dt">P</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb14-2" data-line-number="2">var <span class="fu">=</span> <span class="dt">Var</span> <span class="fu">&lt;$&gt;</span> identifier</a></code></pre></div>
+<p>All that’s left is to handle operators and parentheses. Because Purescript is evaluated strictly (in fact, it’s evaluated by compiling into Javascript and then running the output), any parsers we want that can be used recursively will have to take an argument, unless if that parser comes in the “initial step” of recursive parsing.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb15-1" data-line-number="1"><span class="ot">term ::</span> <span class="dt">P</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">P</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb15-2" data-line-number="2">term p <span class="fu">=</span> parens p <span class="fu">&lt;|&gt;</span> lit <span class="fu">&lt;|&gt;</span> var</a></code></pre></div>
+<p>The sole argument to <code>term</code> represents the “overall” <code>Expr</code> parser. Here you can see that using parentheses lines up with how we think of them. That is, our <code>term</code> parser will look for expressions in parentheses first, and only if the parentheses parser fails will it try to parse a literal value, then a variable.</p>
+<p>Before we get to the ultimate <code>Expr</code> parser, we have to deal with operators. We do so through the use of an operator table:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb16-1" data-line-number="1"><span class="ot">table ::</span> <span class="dt">OperatorTable</span> <span class="dt">Identity</span> <span class="dt">String</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb16-2" data-line-number="2">table <span class="fu">=</span></a>
+<a class="sourceLine" id="cb16-3" data-line-number="3">  [ [ <span class="dt">Prefix</span> (reservedOp <span class="st">&quot;~&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Unop</span> <span class="dt">Not</span>)</a>
+<a class="sourceLine" id="cb16-4" data-line-number="4">    , <span class="dt">Prefix</span> (reservedOp <span class="st">&quot;-&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Unop</span> <span class="dt">Negate</span>) ]</a>
+<a class="sourceLine" id="cb16-5" data-line-number="5">  , [ <span class="dt">Infix</span> (reservedOp <span class="st">&quot;*&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Mul</span>) <span class="dt">AssocLeft</span></a>
+<a class="sourceLine" id="cb16-6" data-line-number="6">    , <span class="dt">Infix</span> (reservedOp <span class="st">&quot;/&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Div</span>) <span class="dt">AssocLeft</span> ]</a>
+<a class="sourceLine" id="cb16-7" data-line-number="7">  , [ <span class="dt">Infix</span> (reservedOp <span class="st">&quot;+&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Add</span>) <span class="dt">AssocLeft</span></a>
+<a class="sourceLine" id="cb16-8" data-line-number="8">    , <span class="dt">Infix</span> (reservedOp <span class="st">&quot;-&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Sub</span>) <span class="dt">AssocLeft</span> ]</a>
+<a class="sourceLine" id="cb16-9" data-line-number="9">  , [ <span class="dt">Infix</span> (reservedOp <span class="st">&quot;&lt;&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Less</span>) <span class="dt">AssocRight</span></a>
+<a class="sourceLine" id="cb16-10" data-line-number="10">    , <span class="dt">Infix</span> (reservedOp <span class="st">&quot;=&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Eql</span>) <span class="dt">AssocRight</span> ]</a>
+<a class="sourceLine" id="cb16-11" data-line-number="11">  , [ <span class="dt">Infix</span> (reservedOp <span class="st">&quot;||&quot;</span> <span class="fu">$&gt;</span> <span class="dt">Binop</span> <span class="dt">Or</span>) <span class="dt">AssocRight</span> ] ]</a></code></pre></div>
+<p>An operator table is an array of arrays: the first array in the table represents those operators with the highest precedence, while the last is for those with the lowest. As you can see here, our unary operators all have higher precedence than our binary ones.</p>
+<p>Note that for binary operators we also have to give an associativity.</p>
+<p>Now we can define the most general <code>Expr</code> parser:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb17-1" data-line-number="1"><span class="ot">expr ::</span> <span class="dt">P</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb17-2" data-line-number="2">expr <span class="fu">=</span> fix allExprs</a>
+<a class="sourceLine" id="cb17-3" data-line-number="3">  <span class="kw">where</span></a>
+<a class="sourceLine" id="cb17-4" data-line-number="4">    allExprs p <span class="fu">=</span> buildExprParser table (term p)</a></code></pre></div>
+<p>Two things are happening here: we’re incorporating our operator table into our expressions, and dealing with recursive parsing in a strict language.</p>
+<ol type="1">
+<li>The type of <code>fix :: forall l. Lazy l =&gt; (l -&gt; l) -&gt; l</code>. This gives us the least fixed point of a given function. In a lazy language like Haskell, you can define it as <code>fix f = f (fix f)</code>. Yes, it is related to the y-combinator from lambda calculus.</li>
+<li><code>buildExprParser</code> takes an operator table and a parser, and gives back a new parser. Dealing with operators is mostly pain-free. All we really had to think about was our operators’ precedences and associativity. <code>buildExprParser</code> takes care of all the plumbing for us.</li>
+</ol>
+<p>Lastly, we need to be able to parse calculator commands:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb18-1" data-line-number="1"><span class="ot">def ::</span> <span class="dt">P</span> <span class="dt">Cmd</span></a>
+<a class="sourceLine" id="cb18-2" data-line-number="2">def <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb18-3" data-line-number="3">  name <span class="ot">&lt;-</span> identifier</a>
+<a class="sourceLine" id="cb18-4" data-line-number="4">  reservedOp <span class="st">&quot;:=&quot;</span></a>
+<a class="sourceLine" id="cb18-5" data-line-number="5">  t <span class="ot">&lt;-</span> expr</a>
+<a class="sourceLine" id="cb18-6" data-line-number="6">  pure (name <span class="fu">:=</span> t)</a></code></pre></div>
+<p>This is the first time we’ve used <code>do</code> notation, but it’s simple to understand. The code reads imperatively: bind “name” to an identifier, check for the reserved operator “:=”, parse an expression and bind it to “t”, then give back “name” assigned to “t”.</p>
+<p>Evaluation is even simpler:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb19-1" data-line-number="1"><span class="ot">eval ::</span> <span class="dt">P</span> <span class="dt">Cmd</span></a>
+<a class="sourceLine" id="cb19-2" data-line-number="2">eval <span class="fu">=</span> <span class="dt">Eval</span> <span class="fu">&lt;$&gt;</span> expr</a></code></pre></div>
+<p>And we combine the two:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb20-1" data-line-number="1"><span class="ot">cmd ::</span> <span class="dt">P</span> <span class="dt">Cmd</span></a>
+<a class="sourceLine" id="cb20-2" data-line-number="2">cmd <span class="fu">=</span> try def <span class="fu">&lt;|&gt;</span> evalExpr</a></code></pre></div>
+<p>The <code>try</code> combinator resets the stream in case of failure.</p>
+<p>We’ll write a function that takes in text as input and gives a <code>Cmd</code> as output, but first a detour through error-handling, since our parser might fail.</p>
+<h2 id="error-handling">Error handling</h2>
+<p>Error handling in Purescript can be done purely (whodathunkit?). This means we’ll treat errors as just normal values, there won’t be anything exceptional about them. We’ve already considered that our parser might fail. We might also get a type mismatch when trying to evaluate an expression, or we might reference a variable that doesn’t exist. We’ll also include a general-purpose error:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb21-1" data-line-number="1"><span class="kw">module</span> <span class="dt">Error</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb21-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb21-3" data-line-number="3"><span class="kw">import</span> <span class="dt">Prelude</span></a>
+<a class="sourceLine" id="cb21-4" data-line-number="4"><span class="kw">import</span> <span class="dt">Syntax</span> (<span class="dt">Lit</span>, <span class="dt">Name</span>)</a>
+<a class="sourceLine" id="cb21-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb21-6" data-line-number="6"><span class="kw">import</span> <span class="dt">Data.Either</span> (<span class="dt">Either</span>(..))</a>
+<a class="sourceLine" id="cb21-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb21-8" data-line-number="8"><span class="kw">data</span> <span class="dt">Error</span> <span class="fu">=</span> <span class="dt">ParseError</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb21-9" data-line-number="9">           <span class="fu">|</span> <span class="dt">TypeMismatch</span> <span class="dt">Lit</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb21-10" data-line-number="10">           <span class="fu">|</span> <span class="dt">UnknownValue</span> <span class="dt">Name</span></a>
+<a class="sourceLine" id="cb21-11" data-line-number="11">           <span class="fu">|</span> <span class="dt">TheImpossibleHappened</span> <span class="dt">String</span></a></code></pre></div>
+<p>We’ll also want the ability to see our errors as text:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb22-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> showError ::</span> <span class="dt">Show</span> <span class="dt">Error</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb22-2" data-line-number="2">  show (<span class="dt">ParseError</span> s) <span class="fu">=</span> <span class="st">&quot;Parse error: &quot;</span> <span class="fu">&lt;&gt;</span> s</a>
+<a class="sourceLine" id="cb22-3" data-line-number="3">  show (<span class="dt">TypeMismatch</span> l s) <span class="fu">=</span> <span class="st">&quot;Type mismatch: expecting &quot;</span> <span class="fu">&lt;&gt;</span> s <span class="fu">&lt;&gt;</span> <span class="st">&quot;but found&quot;</span> <span class="fu">&lt;&gt;</span> show l</a>
+<a class="sourceLine" id="cb22-4" data-line-number="4">  show (<span class="dt">UnknownValue</span> n) <span class="fu">=</span> <span class="st">&quot;Unknown value: &quot;</span> <span class="fu">&lt;&gt;</span> n</a>
+<a class="sourceLine" id="cb22-5" data-line-number="5">  show (<span class="dt">TheImpossibleHappened</span> msg) <span class="fu">=</span> <span class="st">&quot;The impossible happened: &quot;</span> <span class="fu">&lt;&gt;</span> msg</a></code></pre></div>
+<p>And we’ll define a type synonym for dealing with errors:</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb23-1" data-line-number="1"><span class="kw">type</span> <span class="dt">Expect</span> a <span class="fu">=</span> <span class="dt">Either</span> <span class="dt">Error</span> a</a></code></pre></div>
+<p>The <code>Either</code> type is used for values that can be either one of two types: a type on the <code>Left</code> or one on the <code>Right</code>. Its definition is <code>data Either a b = Left a | Right b</code>. By convention (and, I suppose, our own definition) values on the <code>Left</code> are considered to be errors.</p>
+<p>We’ll also define a helper function for throwing errors:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb24-1" data-line-number="1"><span class="ot">throw ::</span> forall a<span class="fu">.</span> <span class="dt">Error</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> a</a>
+<a class="sourceLine" id="cb24-2" data-line-number="2">throw <span class="fu">=</span> <span class="dt">Left</span></a></code></pre></div>
+<p>and helper functions for each of the error constructors:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb25-1" data-line-number="1"><span class="ot">parseError ::</span> forall a<span class="fu">.</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> a</a>
+<a class="sourceLine" id="cb25-2" data-line-number="2">parseError <span class="fu">=</span> throw <span class="fu">&lt;&lt;&lt;</span> <span class="dt">ParseError</span></a>
+<a class="sourceLine" id="cb25-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb25-4" data-line-number="4"><span class="ot">typeMismatch ::</span> forall a<span class="fu">.</span> <span class="dt">Lit</span> <span class="ot">-&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> a</a>
+<a class="sourceLine" id="cb25-5" data-line-number="5">typeMismatch l <span class="fu">=</span> throw <span class="fu">&lt;&lt;&lt;</span> <span class="dt">TypeMismatch</span> l</a>
+<a class="sourceLine" id="cb25-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb25-7" data-line-number="7"><span class="ot">unknownValue ::</span> forall a<span class="fu">.</span> <span class="dt">Name</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> a</a>
+<a class="sourceLine" id="cb25-8" data-line-number="8">unknownValue <span class="fu">=</span> throw <span class="fu">&lt;&lt;&lt;</span> <span class="dt">UnknownValue</span></a>
+<a class="sourceLine" id="cb25-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb25-10" data-line-number="10"><span class="ot">theImpossibleHappened ::</span> forall a<span class="fu">.</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> a</a>
+<a class="sourceLine" id="cb25-11" data-line-number="11">theImpossibleHappened <span class="fu">=</span> throw <span class="fu">&lt;&lt;&lt;</span> <span class="dt">TheImpossibleHappened</span></a></code></pre></div>
+<p>All of our definitions here make use of function composition. As a consequence, three of our definitions don’t even reference their arguments. The resulting definitions read smoothly: <code>parseError</code> is just defined as throwing a <code>ParseError</code>.</p>
+<h3 id="back-to-parsing">Back to parsing</h3>
+<p>Now we can write our function that takes an input <code>String</code> and (we expect) gives us a <code>Cmd</code>:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb26-1" data-line-number="1"><span class="ot">parse ::</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Cmd</span></a>
+<a class="sourceLine" id="cb26-2" data-line-number="2">parse <span class="fu">=</span> <span class="kw">case</span> runParser s cmd <span class="kw">of</span></a>
+<a class="sourceLine" id="cb26-3" data-line-number="3">  <span class="dt">Left</span> (<span class="dt">ParseError</span> e) <span class="fu">=</span> parseError e<span class="fu">.</span>message</a>
+<a class="sourceLine" id="cb26-4" data-line-number="4">  <span class="dt">Right</span> c <span class="ot">-&gt;</span> pure c</a></code></pre></div>
+<h2 id="evaluation">Evaluation</h2>
+<p>We get to the guts of our calculator program: evaluation!</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb27-1" data-line-number="1"><span class="kw">module</span> <span class="dt">Eval</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb27-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb27-3" data-line-number="3"><span class="kw">import</span> <span class="dt">Prelude</span></a>
+<a class="sourceLine" id="cb27-4" data-line-number="4"><span class="kw">import</span> <span class="dt">Syntax</span> (<span class="dt">Expr</span>(..), <span class="dt">Binop</span>(..), <span class="dt">Unop</span>(..), <span class="dt">Lit</span>(..), typeof)</a>
+<a class="sourceLine" id="cb27-5" data-line-number="5"><span class="kw">import</span> <span class="dt">Error</span> (<span class="dt">Expect</span>, typeMismatch, unknownValue)</a>
+<a class="sourceLine" id="cb27-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb27-7" data-line-number="7"><span class="kw">import</span> <span class="dt">Data.Maybe</span> (<span class="dt">Maybe</span>(..))</a>
+<a class="sourceLine" id="cb27-8" data-line-number="8"><span class="kw">import</span> <span class="dt">Data.StrMap</span> (<span class="dt">StrMap</span>, empty, lookup)</a></code></pre></div>
+<p>We’ll want to keep track of which variables we’ve defined in an environment, so we’ll use a string map:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb28-1" data-line-number="1"><span class="kw">type</span> <span class="dt">Env</span> <span class="fu">=</span> <span class="dt">StrMap</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb28-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb28-3" data-line-number="3"><span class="ot">initEnv ::</span> <span class="dt">Env</span></a>
+<a class="sourceLine" id="cb28-4" data-line-number="4">initEnv <span class="fu">=</span> empty</a></code></pre></div>
+<p>Our main evaluation function mostly delegates to helper functions:</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb29-1" data-line-number="1"><span class="ot">eval ::</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb29-2" data-line-number="2">eval env <span class="fu">=</span> <span class="kw">case</span> _ <span class="kw">of</span></a>
+<a class="sourceLine" id="cb29-3" data-line-number="3">  n<span class="fu">@</span>(<span class="dt">Lit</span> (<span class="dt">Int</span> _)) <span class="ot">-&gt;</span> pure n</a>
+<a class="sourceLine" id="cb29-4" data-line-number="4">  b<span class="fu">@</span>(<span class="dt">Lit</span> (<span class="dt">Bool</span> _)) <span class="ot">-&gt;</span> pure b</a>
+<a class="sourceLine" id="cb29-5" data-line-number="5">  <span class="dt">Var</span> name <span class="ot">-&gt;</span> <span class="kw">case</span> lookup name env <span class="kw">of</span></a>
+<a class="sourceLine" id="cb29-6" data-line-number="6">    <span class="dt">Just</span> val <span class="ot">-&gt;</span> pure val</a>
+<a class="sourceLine" id="cb29-7" data-line-number="7">    _ <span class="ot">-&gt;</span> unknownValue name</a>
+<a class="sourceLine" id="cb29-8" data-line-number="8">  <span class="dt">Binop</span> op e1 e2 <span class="ot">-&gt;</span> evalBinop env op e1 e2</a>
+<a class="sourceLine" id="cb29-9" data-line-number="9">  <span class="dt">Unop</span> op e <span class="ot">-&gt;</span> evalUnop env op e</a></code></pre></div>
+<p>We also want functions to turn a normal Purescript integer/boolean to an expression in our error-handling type:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb30-1" data-line-number="1"><span class="ot">raiseInt ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb30-2" data-line-number="2">raiseInt <span class="fu">=</span> pure <span class="fu">&lt;&lt;&lt;</span> <span class="dt">Lit</span> <span class="fu">&lt;&lt;&lt;</span> <span class="dt">Int</span></a>
+<a class="sourceLine" id="cb30-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb30-4" data-line-number="4"><span class="ot">raiseBool ::</span> <span class="dt">Boolean</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb30-5" data-line-number="5">raiseBool <span class="fu">=</span> pure <span class="fu">&lt;&lt;&lt;</span> <span class="dt">Lit</span> <span class="fu">&lt;&lt;&lt;</span> <span class="dt">Bool</span></a></code></pre></div>
+<p>On to the helper functions:</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb31-1" data-line-number="1"><span class="ot">evalBinop ::</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">Binop</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb31-2" data-line-number="2">evalBinop env op e1 e2 <span class="fu">=</span> <span class="kw">case</span> op <span class="kw">of</span></a>
+<a class="sourceLine" id="cb31-3" data-line-number="3">  <span class="dt">Add</span> <span class="ot">-&gt;</span> evalArithBinop add env e1 e2</a>
+<a class="sourceLine" id="cb31-4" data-line-number="4">  <span class="dt">Sub</span> <span class="ot">-&gt;</span> evalArithBinop sub env e1 e2</a>
+<a class="sourceLine" id="cb31-5" data-line-number="5">  <span class="dt">Mul</span> <span class="ot">-&gt;</span> evalArithBinop mul env e1 e2</a>
+<a class="sourceLine" id="cb31-6" data-line-number="6">  <span class="dt">Div</span> <span class="ot">-&gt;</span> evalArithBinop div env e1 e2</a>
+<a class="sourceLine" id="cb31-7" data-line-number="7">  <span class="dt">Or</span> <span class="ot">-&gt;</span> evalOr env e1 e2</a>
+<a class="sourceLine" id="cb31-8" data-line-number="8">  <span class="dt">Less</span> <span class="ot">-&gt;</span> evalLess env e1 e2</a>
+<a class="sourceLine" id="cb31-9" data-line-number="9">  <span class="dt">Eql</span> <span class="ot">-&gt;</span> evalEql env e1 e2</a></code></pre></div>
+<p>We also define a type synonym so we don’t have to type as much. This might not help so much now, but it’s useful should you decide to add support for more operators.</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb32-1" data-line-number="1"><span class="kw">type</span> <span class="dt">EvalBinop</span> <span class="fu">=</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb32-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb32-3" data-line-number="3"><span class="ot">evalArithBinop ::</span> (forall s<span class="fu">.</span> (<span class="dt">Ring</span> s, <span class="dt">ModuloSemiring</span> s) <span class="ot">=&gt;</span> s <span class="ot">-&gt;</span> s <span class="ot">-&gt;</span> s) <span class="ot">-&gt;</span> <span class="dt">EvalBinop</span></a>
+<a class="sourceLine" id="cb32-4" data-line-number="4">evalArithBinop op env e1 e2 <span class="fu">=</span> <span class="kw">case</span> e1, e2 <span class="kw">of</span></a>
+<a class="sourceLine" id="cb32-5" data-line-number="5">  <span class="dt">Lit</span> (<span class="dt">Int</span> n), <span class="dt">Lit</span> (<span class="dt">Int</span> m) <span class="ot">-&gt;</span> raiseInt <span class="fu">$</span> op e1 e2</a>
+<a class="sourceLine" id="cb32-6" data-line-number="6">  <span class="dt">Lit</span> t<span class="fu">@</span>(<span class="dt">Bool</span> _), _ <span class="ot">-&gt;</span> typeMismatch t <span class="st">&quot;int&quot;</span></a>
+<a class="sourceLine" id="cb32-7" data-line-number="7">  _, <span class="dt">Lit</span> t<span class="fu">@</span>(<span class="dt">Bool</span> _) <span class="ot">-&gt;</span> typeMismatch t <span class="st">&quot;int&quot;</span></a>
+<a class="sourceLine" id="cb32-8" data-line-number="8">  _, _ <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb32-9" data-line-number="9">    e <span class="ot">&lt;-</span> eval env e1</a>
+<a class="sourceLine" id="cb32-10" data-line-number="10">    e' <span class="ot">&lt;-</span> eval env e2</a>
+<a class="sourceLine" id="cb32-11" data-line-number="11">    evalArithBinop op env e e'</a></code></pre></div>
+<p><code>evalArithBinop</code> uses somewhat of an advanced type system feature. The first argument is a rank 2 type, which means <code>evalArithBinop</code> takes in a polymorphic function as an argument and is allowed to use it polymorphically instead of implicitly using it as a monomorphic function. If we reduce the signature’s rank the compiler will yell at us:</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb33-1" data-line-number="1"><span class="ot">evalArithBinop ::</span> forall s<span class="fu">.</span> (<span class="dt">Ring</span> s, <span class="dt">ModuloSemiring</span> s) <span class="ot">=&gt;</span> (s <span class="ot">-&gt;</span> s <span class="ot">-&gt;</span> s) <span class="ot">-&gt;</span> <span class="dt">EvalBinop</span></a></code></pre></div>
+<pre><code>&gt; Could not match type Int with type s0</code></pre>
+<p>While we could eschew the <code>Semiring</code> class and function for an argument of type <code>Int -&gt; Int -&gt; Int</code>, this more general version will work in case we want to add support for floating point arithmetic via <code>Number</code>s later.</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb35-1" data-line-number="1"><span class="ot">evalOr ::</span> <span class="dt">EvalBinop</span></a>
+<a class="sourceLine" id="cb35-2" data-line-number="2">evalOr env e1 e2 <span class="fu">=</span> <span class="kw">case</span> e1, e2 <span class="kw">of</span></a>
+<a class="sourceLine" id="cb35-3" data-line-number="3">  <span class="dt">Lit</span> (<span class="dt">Bool</span> p), <span class="dt">Lit</span> (<span class="dt">Bool</span> q) <span class="ot">-&gt;</span> raiseBool <span class="fu">$</span> p <span class="fu">||</span> q</a>
+<a class="sourceLine" id="cb35-4" data-line-number="4">  <span class="dt">Lit</span> t<span class="fu">@</span>(<span class="dt">Int</span> _), _ <span class="ot">-&gt;</span> typeMismatch t <span class="st">&quot;bool&quot;</span></a>
+<a class="sourceLine" id="cb35-5" data-line-number="5">  _, <span class="dt">Lit</span> t<span class="fu">@</span>(<span class="dt">Int</span> _) <span class="ot">-&gt;</span> typeMismatch t <span class="st">&quot;bool&quot;</span></a>
+<a class="sourceLine" id="cb35-6" data-line-number="6">  _, _ <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb35-7" data-line-number="7">    e <span class="ot">&lt;-</span> eval env e1</a>
+<a class="sourceLine" id="cb35-8" data-line-number="8">    e' <span class="ot">&lt;-</span> eval env e2</a>
+<a class="sourceLine" id="cb35-9" data-line-number="9">    evalOr env e e'</a>
+<a class="sourceLine" id="cb35-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb35-11" data-line-number="11"><span class="ot">evalLess ::</span> <span class="dt">EvalBinop</span></a>
+<a class="sourceLine" id="cb35-12" data-line-number="12">evalLess env e1 e2 <span class="fu">=</span> <span class="kw">case</span> e1, e2 <span class="kw">of</span></a>
+<a class="sourceLine" id="cb35-13" data-line-number="13">  <span class="dt">Lit</span> (<span class="dt">Int</span> n), <span class="dt">Lit</span> (<span class="dt">Int</span> m) <span class="ot">-&gt;</span> raiseBool <span class="fu">$</span> n <span class="fu">&lt;</span> m</a>
+<a class="sourceLine" id="cb35-14" data-line-number="14">  <span class="dt">Lit</span> (<span class="dt">Bool</span> p), <span class="dt">Lit</span> (<span class="dt">Bool</span> q) <span class="ot">-&gt;</span> raiseBool <span class="fu">$</span> p <span class="fu">&lt;</span> q</a>
+<a class="sourceLine" id="cb35-15" data-line-number="15">  <span class="dt">Lit</span> t1, <span class="dt">Lit</span> t2 <span class="ot">-&gt;</span> typeMismatch t2 <span class="fu">$</span> typeof t1</a>
+<a class="sourceLine" id="cb35-16" data-line-number="16">  _, _ <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb35-17" data-line-number="17">    e <span class="ot">&lt;-</span> eval env e1</a>
+<a class="sourceLine" id="cb35-18" data-line-number="18">    e' <span class="ot">&lt;-</span> eval env e2</a>
+<a class="sourceLine" id="cb35-19" data-line-number="19">    evalLess env e e'</a>
+<a class="sourceLine" id="cb35-20" data-line-number="20"></a>
+<a class="sourceLine" id="cb35-21" data-line-number="21"><span class="ot">evalEql ::</span> <span class="dt">EvalBinop</span></a>
+<a class="sourceLine" id="cb35-22" data-line-number="22">evalEql env e1 e2 <span class="fu">=</span> <span class="kw">case</span> e1, e2 <span class="kw">of</span></a>
+<a class="sourceLine" id="cb35-23" data-line-number="23">  <span class="dt">Lit</span> x, <span class="dt">Lit</span> y <span class="ot">-&gt;</span> raiseBool <span class="fu">$</span> x <span class="fu">==</span> y</a>
+<a class="sourceLine" id="cb35-24" data-line-number="24">  _, _ <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb35-25" data-line-number="25">    e <span class="ot">&lt;-</span> eval env e1</a>
+<a class="sourceLine" id="cb35-26" data-line-number="26">    e' <span class="ot">&lt;-</span> eval env e2</a>
+<a class="sourceLine" id="cb35-27" data-line-number="27">    evalEql env e e'</a></code></pre></div>
+<p>Unary operators are pretty much what you’d expect:</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb36-1" data-line-number="1"><span class="kw">type</span> <span class="dt">EvalUnop</span> <span class="fu">=</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb36-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb36-3" data-line-number="3"><span class="ot">evalUnop ::</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">Unop</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Expect</span> <span class="dt">Expr</span></a>
+<a class="sourceLine" id="cb36-4" data-line-number="4">evalUnop env op e <span class="fu">=</span> <span class="kw">case</span> op <span class="kw">of</span></a>
+<a class="sourceLine" id="cb36-5" data-line-number="5">  <span class="dt">Not</span> <span class="ot">-&gt;</span> evalNot env e</a>
+<a class="sourceLine" id="cb36-6" data-line-number="6">  <span class="dt">Negate</span> <span class="ot">-&gt;</span> evalNegate env e</a>
+<a class="sourceLine" id="cb36-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb36-8" data-line-number="8"><span class="ot">evalNot ::</span> <span class="dt">EvalUnop</span></a>
+<a class="sourceLine" id="cb36-9" data-line-number="9">evalNot env <span class="fu">=</span> <span class="kw">case</span> _ <span class="kw">of</span></a>
+<a class="sourceLine" id="cb36-10" data-line-number="10">  <span class="dt">Lit</span> (<span class="dt">Bool</span> b) <span class="ot">-&gt;</span> raiseBool <span class="fu">$</span> not b</a>
+<a class="sourceLine" id="cb36-11" data-line-number="11">  <span class="dt">Lit</span> l <span class="ot">-&gt;</span> typeMismatch l <span class="st">&quot;bool&quot;</span></a>
+<a class="sourceLine" id="cb36-12" data-line-number="12">  e <span class="ot">-&gt;</span> eval env e <span class="fu">&gt;&gt;=</span> evalNot env</a>
+<a class="sourceLine" id="cb36-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb36-14" data-line-number="14"><span class="ot">evalNegate ::</span> <span class="dt">EvalUnop</span></a>
+<a class="sourceLine" id="cb36-15" data-line-number="15">evalNegate env <span class="fu">=</span> <span class="kw">case</span> _ <span class="kw">of</span></a>
+<a class="sourceLine" id="cb36-16" data-line-number="16">  <span class="dt">Lit</span> (<span class="dt">Int</span> n) <span class="ot">-&gt;</span> raiseInt (<span class="fu">-</span>n)</a>
+<a class="sourceLine" id="cb36-17" data-line-number="17">  <span class="dt">Lit</span> l <span class="ot">-&gt;</span> typeMismatch l <span class="st">&quot;int&quot;</span></a>
+<a class="sourceLine" id="cb36-18" data-line-number="18">  e <span class="ot">-&gt;</span> eval env e <span class="fu">&gt;&gt;=</span> evalNegate env</a></code></pre></div>
+<p>Instead of using <code>do</code> notation, we use its desugared form, which saves us two lines. What we’ve written using <code>&gt;&gt;=</code> is equivalent to <code>do</code>ing</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb37-1" data-line-number="1">  e <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb37-2" data-line-number="2">    e' <span class="ot">&lt;-</span> eval env e</a>
+<a class="sourceLine" id="cb37-3" data-line-number="3">    evalNegate env e'</a></code></pre></div>
+<p>And that’s it!</p>
+<h2 id="a-node-repl">A node REPL</h2>
+<p>We get to the final part of our calculator, which is moving away from the land of pure functions and getting our hands dirty with some effectful stuff. I’ve chosen to show how to implement our calculator as a node.js CLI app, but you could also use it to power a web calculator on a page.</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb38-1" data-line-number="1"><span class="kw">module</span> <span class="dt">Main</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb38-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb38-3" data-line-number="3"><span class="kw">import</span> <span class="dt">Prelude</span></a>
+<a class="sourceLine" id="cb38-4" data-line-number="4"><span class="kw">import</span> <span class="dt">Eval</span> (<span class="dt">Env</span>, initEnv, eval)</a>
+<a class="sourceLine" id="cb38-5" data-line-number="5"><span class="kw">import</span> <span class="dt">Parser</span> (parse)</a>
+<a class="sourceLine" id="cb38-6" data-line-number="6"><span class="kw">import</span> <span class="dt">Syntax</span> (<span class="dt">Cmd</span>(..), (:=), <span class="dt">Expr</span>)</a>
+<a class="sourceLine" id="cb38-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb38-8" data-line-number="8"><span class="kw">import</span> <span class="dt">Control.Monad.Eff</span> (<span class="dt">Eff</span>)</a>
+<a class="sourceLine" id="cb38-9" data-line-number="9"><span class="kw">import</span> <span class="dt">Control.Monad.Eff.Console</span> (<span class="dt">CONSOLE</span>)</a>
+<a class="sourceLine" id="cb38-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb38-11" data-line-number="11"><span class="kw">import</span> <span class="dt">Data.Either</span> (<span class="dt">Either</span>(..))</a>
+<a class="sourceLine" id="cb38-12" data-line-number="12"><span class="kw">import</span> <span class="dt">Data.Foldable</span> (intercalate)</a>
+<a class="sourceLine" id="cb38-13" data-line-number="13"><span class="kw">import</span> <span class="dt">Data.Maybe</span> (<span class="dt">Maybe</span>(..))</a>
+<a class="sourceLine" id="cb38-14" data-line-number="14"><span class="kw">import</span> <span class="dt">Data.StrMap</span> (toList, alter)</a>
+<a class="sourceLine" id="cb38-15" data-line-number="15"><span class="kw">import</span> <span class="dt">Data.Tuple</span> (<span class="dt">Tuple</span>(..))</a>
+<a class="sourceLine" id="cb38-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb38-17" data-line-number="17"><span class="kw">import</span> <span class="dt">Node.SimpleRepl</span> (<span class="dt">Repl</span>, runRepl, setPrompt, readLine, putStrLn)</a>
+<a class="sourceLine" id="cb38-18" data-line-number="18"><span class="kw">import</span> <span class="dt">Node.ReadLine</span> (<span class="dt">READLINE</span>)</a>
+<a class="sourceLine" id="cb38-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb38-20" data-line-number="20"><span class="ot">main ::</span> forall e<span class="fu">.</span> <span class="dt">Eff</span> (<span class="ot"> console ::</span> <span class="dt">CONSOLE</span>,<span class="ot"> readline ::</span> <span class="dt">READLINE</span> <span class="fu">|</span> e ) <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb38-21" data-line-number="21">main <span class="fu">=</span> runRepl <span class="kw">do</span></a>
+<a class="sourceLine" id="cb38-22" data-line-number="22">  setPrompt <span class="st">&quot;&gt; &quot;</span></a>
+<a class="sourceLine" id="cb38-23" data-line-number="23">  loop initEnv</a></code></pre></div>
+<p>The type of <code>main</code> says that it has effects (specifically those associated with using the console and node’s readline module) and doesn’t return anything of interest. First we set the prompt to an unfancy <code>&gt;</code>, and start the loop with an empty initial environment.</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb39-1" data-line-number="1"><span class="ot">loop ::</span> forall e<span class="fu">.</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">Repl</span> e <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb39-2" data-line-number="2">loop e <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb39-3" data-line-number="3">  input <span class="ot">&lt;-</span> readLine</a>
+<a class="sourceLine" id="cb39-4" data-line-number="4">  <span class="kw">case</span> input <span class="kw">of</span></a>
+<a class="sourceLine" id="cb39-5" data-line-number="5">    <span class="st">&quot;quit&quot;</span> <span class="ot">-&gt;</span> pure unit</a>
+<a class="sourceLine" id="cb39-6" data-line-number="6">    _ <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb39-7" data-line-number="7">      { env, str } <span class="ot">&lt;-</span> evalCmd env input</a>
+<a class="sourceLine" id="cb39-8" data-line-number="8">      putStrLn str</a>
+<a class="sourceLine" id="cb39-9" data-line-number="9">      loop env</a></code></pre></div>
+<p>In our loop, we’ll want to be able to change the environment from command to command. Thus we give it an explicit <code>Env</code> parameter, so that subsequent calls to <code>loop</code> can use a modified environment. We also pattern match on the input, exiting the loop if we encounter “quit”. Otherwise, we pass off the input and environment to an <code>evalCmd</code> function, getting a (possibly changed) environment and string to print. We print the string, and loop all over again.</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb40-1" data-line-number="1"><span class="ot">evalCmd ::</span> forall e<span class="fu">.</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Repl</span> e {<span class="ot"> env ::</span> <span class="dt">Env</span>,<span class="ot"> str ::</span> <span class="dt">String</span> }</a>
+<a class="sourceLine" id="cb40-2" data-line-number="2">evalCmd e input <span class="fu">=</span> <span class="kw">case</span> parse input <span class="kw">of</span></a>
+<a class="sourceLine" id="cb40-3" data-line-number="3">  <span class="dt">Left</span> err <span class="ot">-&gt;</span> pure { env<span class="fu">:</span> e, str<span class="fu">:</span> show err }</a>
+<a class="sourceLine" id="cb40-4" data-line-number="4">  <span class="dt">Right</span> (name <span class="fu">:=</span> val) <span class="ot">-&gt;</span> <span class="kw">case</span> eval e val <span class="kw">of</span></a>
+<a class="sourceLine" id="cb40-5" data-line-number="5">    <span class="dt">Left</span> err <span class="ot">-&gt;</span> pure { env<span class="fu">:</span> e, str<span class="fu">:</span> show err }</a>
+<a class="sourceLine" id="cb40-6" data-line-number="6">    <span class="dt">Right</span> expr <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb40-7" data-line-number="7">      <span class="kw">let</span> env <span class="fu">=</span> upsert e name expr</a>
+<a class="sourceLine" id="cb40-8" data-line-number="8">      setPrompt <span class="fu">$</span> pprint env <span class="fu">&lt;&gt;</span> <span class="st">&quot;\n&gt; &quot;</span></a>
+<a class="sourceLine" id="cb40-9" data-line-number="9">      pure { env, str<span class="fu">:</span> name <span class="fu">&lt;&gt;</span> <span class="st">&quot; defined&quot;</span> }</a>
+<a class="sourceLine" id="cb40-10" data-line-number="10">  <span class="dt">Right</span> (<span class="dt">Eval</span> expr) <span class="ot">-&gt;</span> <span class="kw">case</span> eval e expr <span class="kw">of</span></a>
+<a class="sourceLine" id="cb40-11" data-line-number="11">    <span class="dt">Left</span> err <span class="ot">-&gt;</span> pure { env<span class="fu">:</span> e, str<span class="fu">:</span> show err }</a>
+<a class="sourceLine" id="cb40-12" data-line-number="12">    <span class="dt">Right</span> exp <span class="ot">-&gt;</span> pure { env<span class="fu">:</span> e, str<span class="fu">:</span> <span class="st">&quot;\x1b[34m&quot;</span> <span class="fu">&lt;&gt;</span> show exp <span class="fu">&lt;&gt;</span> <span class="st">&quot;\x1b[0m&quot;</span> }</a></code></pre></div>
+<p>There are three cases to consider when parsing a command: Either</p>
+<ol type="1">
+<li>We get a parse error, in which case we return the given environment and show the error,</li>
+<li>we bind a name to an expression. If the expression encounters an error while evaluating, we return the same environment and show the error. Otherwise, we either update or insert the binding to our environment, update the prompt to show a pretty representation of the current bound variables, and return the new environment with the message that the new variable has been successfully defined, or</li>
+<li>we evaluate an expression. If there’s an error, we show it. Otherwise, we show the evaluated expression nested between two ansi codes for blue text.</li>
+</ol>
+<div class="sourceCode" id="cb41"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb41-1" data-line-number="1"><span class="ot">pprint ::</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb41-2" data-line-number="2">pprint e <span class="fu">=</span></a>
+<a class="sourceLine" id="cb41-3" data-line-number="3">  <span class="kw">let</span> list <span class="fu">=</span> toList e</a>
+<a class="sourceLine" id="cb41-4" data-line-number="4">      untupled <span class="fu">=</span> map (\ (<span class="dt">Tuple</span> key val) <span class="ot">-&gt;</span> key <span class="fu">&lt;&gt;</span> <span class="st">&quot; := &quot;</span> <span class="fu">&lt;&gt;</span> show val) list</a>
+<a class="sourceLine" id="cb41-5" data-line-number="5">   <span class="kw">in</span> intercalate <span class="st">&quot;, &quot;</span> untupled</a></code></pre></div>
+<p><code>pprint</code> uses a <code>let</code> binding, which is a way to assign names to expressions and then use those names in some larger expression. It’s a handy way of shortening what would otherwise be unreadably long lines.</p>
+<p>This is also our first use of an anonymous function, otherwise known as a lambda. Since the <code>toList</code> function turns a <code>StrMap</code> into a list of key-value tuples, we want to transform each tuple into a <code>String</code>. We do this by mapping the lambda (which pattern matches on the <code>Tuple</code>s in the list) over the list, then join all the resulting strings with right-padded commas.</p>
+<div class="sourceCode" id="cb42"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb42-1" data-line-number="1"><span class="ot">upsert ::</span> <span class="dt">Env</span> <span class="ot">-&gt;</span> <span class="dt">String</span> <span class="ot">-&gt;</span> <span class="dt">Expr</span> <span class="ot">-&gt;</span> <span class="dt">Env</span></a>
+<a class="sourceLine" id="cb42-2" data-line-number="2">upsert e k v <span class="fu">=</span> alter f k e</a>
+<a class="sourceLine" id="cb42-3" data-line-number="3">  <span class="kw">where</span></a>
+<a class="sourceLine" id="cb42-4" data-line-number="4">  f _ <span class="fu">=</span> <span class="dt">Just</span> v</a></code></pre></div>
+<p>Instead of a <code>let</code> binding, we use <code>where</code> syntax here. The function argument to <code>alter</code> lets us insert, update or delete a value in a <code>StrMap</code>. Pattern matching on a <code>Nothing</code> corresponds to the case of not finding the given key <code>String</code> in the map, and <code>Just</code> to the case of when the key exists. If <code>f</code> outputs a <code>Nothing</code>, the key will not exist in the new map. If it outputs <code>Just x</code>, the new map will associate the key with <code>x</code>.</p>
+<h2 id="final">Final</h2>
+<p>Assuming we’ve done everything correctly, we can test our calculator:</p>
+<pre><code>&gt; pulp run
+* Building project
+psc: No files found using pattern: src/**/*.js
+* Build successful.
+&gt; 2 + 2
+4
+&gt; x := 3
+x defined
+x := 3
+&gt; y := 4
+y defined
+x := 3, y := 4
+&gt; z := 5
+z defined
+x := 3, y := 4, z := 5
+&gt; x*x + y*y = z*z
+true
+x := 3, y := 4, z := 5
+&gt;</code></pre>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

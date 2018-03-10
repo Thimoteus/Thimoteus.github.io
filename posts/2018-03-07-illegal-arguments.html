@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Type-safe Polymorphic Event Handling: Or, Making Illegal Argument Combinations Unrepresentable</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Type-safe Polymorphic Event Handling: Or, Making Illegal Argument Combinations Unrepresentable</h1>
+            <article>
+    <section class="header">
+        Posted on March  7, 2018
+        
+    </section>
+    <section>
+        <h1 id="motivation">Motivation</h1>
+<p>Suppose you’re writing bindings to a node library that has some classes which can emit events. You may have several FFI definitions that look like this:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode javascript"><code class="sourceCode javascript"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="va">exports</span>.<span class="at">onError</span> <span class="op">=</span> <span class="kw">function</span> (obj) <span class="op">{</span></a>
+<a class="sourceLine" id="cb1-2" data-line-number="2">  <span class="cf">return</span> <span class="kw">function</span> (callback) <span class="op">{</span></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3">    <span class="cf">return</span> <span class="kw">function</span> () <span class="op">{</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">      <span class="va">obj</span>.<span class="at">on</span>(<span class="st">&quot;error&quot;</span><span class="op">,</span> <span class="kw">function</span> (err) <span class="op">{</span></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">        <span class="at">callback</span>(err)()<span class="op">;</span></a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">      <span class="op">}</span></a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">    <span class="op">}</span></a>
+<a class="sourceLine" id="cb1-8" data-line-number="8">  <span class="op">}</span></a>
+<a class="sourceLine" id="cb1-9" data-line-number="9"><span class="op">}</span></a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb2-1" data-line-number="1">foreign <span class="kw">import</span> data <span class="dt">LIB_EFFECT</span> :: <span class="dt">Effect</span></a>
+<a class="sourceLine" id="cb2-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb2-3" data-line-number="3">foreign <span class="kw">import</span> data <span class="dt">Obj</span> :: <span class="dt">Type</span></a>
+<a class="sourceLine" id="cb2-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb2-5" data-line-number="5"><span class="kw">type</span> <span class="dt">ErrorCallback</span> e <span class="fu">=</span> <span class="dt">Error</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb2-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb2-7" data-line-number="7">foreign <span class="kw">import</span> onError :: forall e. <span class="dt">Obj</span> -&gt; <span class="dt">ErrorCallback</span> e -&gt; <span class="dt">Eff</span> (le :: <span class="dt">LIB_EFFECT</span> | e) <span class="dt">Unit</span></a></code></pre></div>
+<p>Let’s say you have <code>onError</code> and <code>onSuccess</code>, but their callbacks look different (maybe they have different arities or take different argument types). You could just expose those two methods for handling events, and that wouldn’t be so bad. But if you find out you need to expose many more, you may want to find a DRYer approach than having a bunch of <code>onEvent</code> functions.</p>
+<p>Suppose you’ve cleaned up your FFI so that instead of exporting a bunch of event handling functions, you have one catchall:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode javascript"><code class="sourceCode javascript"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="va">exports</span>.<span class="at">unsafeOn</span> <span class="op">=</span> ...</a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb4-1" data-line-number="1">foreign <span class="kw">import</span> unsafeOn :: forall obj callback e. <span class="dt">String</span> -&gt; obj -&gt; callback -&gt; <span class="dt">Eff</span> (le :: <span class="dt">LIB_EFFECT</span> | e) <span class="dt">Unit</span></a></code></pre></div>
+<p>Unfortunately we can’t safely use this from Purescript – if we want type safety we’ll still need to export a bunch of functions, like <code>onError = unsafeOn &quot;error&quot;</code>.</p>
+<p>So, the goal is to have a single <code>on</code> combinator that somehow takes an event type, object type, callback type and combines them in the right way.</p>
+<h1 id="first-attempt">First attempt</h1>
+<p>Let’s try enumerating all our events.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Event</span> <span class="fu">=</span> <span class="dt">Error</span> <span class="fu">|</span> <span class="dt">Success</span> <span class="fu">|</span> <span class="dt">Other</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb5-3" data-line-number="3"><span class="ot">eventToString ::</span> <span class="dt">Event</span> <span class="ot">-&gt;</span> <span class="dt">String</span></a>
+<a class="sourceLine" id="cb5-4" data-line-number="4">eventToString <span class="fu">=</span> <span class="kw">case</span> _ <span class="kw">of</span></a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">  <span class="dt">Error</span> <span class="ot">-&gt;</span> <span class="st">&quot;error&quot;</span></a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">  <span class="dt">Success</span> <span class="ot">-&gt;</span> <span class="st">&quot;success&quot;</span></a>
+<a class="sourceLine" id="cb5-7" data-line-number="7">  <span class="dt">Other</span> <span class="ot">-&gt;</span> <span class="st">&quot;other&quot;</span></a></code></pre></div>
+<p>Then we might try something like this:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="ot">on ::</span> forall callback e<span class="fu">.</span> <span class="dt">Event</span> <span class="ot">-&gt;</span> <span class="dt">Obj</span> <span class="ot">-&gt;</span> callback <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb6-2" data-line-number="2">on ev <span class="fu">=</span> unsafeOn (eventToString ev)</a></code></pre></div>
+<p>The problem with this is that we can pass literally any value as a callback, so this won’t do.</p>
+<h1 id="second-attempt">Second attempt</h1>
+<p>Odds are we know exactly what the types of our callbacks are, so we’ll just enumerate those too – at most one callback constructor per <code>Event</code> constructor.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Callback</span> e</a>
+<a class="sourceLine" id="cb7-2" data-line-number="2">  <span class="fu">=</span> <span class="dt">ErrorCallback</span> (<span class="dt">Eff.Error</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>)</a>
+<a class="sourceLine" id="cb7-3" data-line-number="3">  <span class="fu">|</span> <span class="dt">SuccessCallback</span> (<span class="dt">Result</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>)</a>
+<a class="sourceLine" id="cb7-4" data-line-number="4">  <span class="fu">|</span> <span class="dt">OtherCallback</span> (<span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb8-1" data-line-number="1"><span class="ot">on2 ::</span> forall e cb<span class="fu">.</span> <span class="dt">Event</span> <span class="ot">-&gt;</span> <span class="dt">Obj</span> <span class="ot">-&gt;</span> <span class="dt">Callback</span> e <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb8-2" data-line-number="2">on2 ev obj cb <span class="fu">=</span> <span class="kw">case</span> ev, cb <span class="kw">of</span></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3">  <span class="dt">Error</span>, <span class="dt">ErrorCallback</span> cb <span class="ot">-&gt;</span> unsafeOn <span class="st">&quot;error&quot;</span> obj cb</a>
+<a class="sourceLine" id="cb8-4" data-line-number="4">  <span class="dt">Success</span>, <span class="dt">SuccessCallback</span> cb <span class="ot">-&gt;</span> unsafeOn <span class="st">&quot;success&quot;</span> obj cb</a>
+<a class="sourceLine" id="cb8-5" data-line-number="5">  <span class="dt">Other</span>, <span class="dt">OtherCallback</span> cb <span class="ot">-&gt;</span> unsafeOn <span class="st">&quot;other&quot;</span> obj cb</a>
+<a class="sourceLine" id="cb8-6" data-line-number="6">  _, _ <span class="ot">-&gt;</span> pure unit</a></code></pre></div>
+<p>This is terrible! We’re silently failing if the wrong callback type is associated with the wrong event, which is surprising to say the least.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="ot">noOp ::</span> forall e<span class="fu">.</span> <span class="dt">Obj</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb9-2" data-line-number="2">noOp obj <span class="fu">=</span> on2 <span class="dt">Success</span> obj <span class="fu">$</span> <span class="dt">ErrorCallback</span> \ err <span class="ot">-&gt;</span> log (message err)</a></code></pre></div>
+<p>Thus we also want to be able to rule out illegal argument <em>combinations</em> and in a way that’s transparent to the caller.</p>
+<h1 id="third-attempt">Third attempt</h1>
+<p>Good for us that there’s a standard way of dealing with the possibility of failure (defined in our case as passing a bad combination of arguments to the <code>on2</code> function).</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="ot">on3 ::</span> forall e cb<span class="fu">.</span> <span class="dt">Event</span> <span class="ot">-&gt;</span> <span class="dt">Obj</span> <span class="ot">-&gt;</span> <span class="dt">Callback</span> e <span class="ot">-&gt;</span> <span class="dt">Maybe</span> (<span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>)</a>
+<a class="sourceLine" id="cb10-2" data-line-number="2">on3 ev obj cb <span class="fu">=</span> <span class="kw">case</span> ev, cb <span class="kw">of</span></a>
+<a class="sourceLine" id="cb10-3" data-line-number="3">  <span class="dt">Error</span>, <span class="dt">ErrorCallback</span> cb <span class="ot">-&gt;</span> <span class="dt">Just</span> (unsafeOn <span class="st">&quot;error&quot;</span> obj cb)</a>
+<a class="sourceLine" id="cb10-4" data-line-number="4">  <span class="dt">Success</span>, <span class="dt">SuccessCallback</span> cb <span class="ot">-&gt;</span> <span class="dt">Just</span> (unsafeOn <span class="st">&quot;success&quot;</span> obj cb)</a>
+<a class="sourceLine" id="cb10-5" data-line-number="5">  <span class="dt">Other</span>, <span class="dt">OtherCallback</span> cb <span class="ot">-&gt;</span> <span class="dt">Just</span> (unsafeOn <span class="st">&quot;other&quot;</span> obj cb)</a>
+<a class="sourceLine" id="cb10-6" data-line-number="6">  _, _ <span class="ot">-&gt;</span> <span class="dt">Nothing</span></a></code></pre></div>
+<p>But this is <em>not</em> ideal. While it solves the problem of making failure explicit, it pushes validation to runtime, and this problem definitely feels like something that can be prevented at compilation.</p>
+<p>And let’s be honest, odds are this would be used by pattern-matching on <code>Nothing</code> and handling that with <code>pure unit</code> – so, the same as the <code>on2</code> definition but with more misdirection.</p>
+<h1 id="fourth-attempt">Fourth attempt</h1>
+<p>Now we know that we want the event to somehow determine the type of the callback. This suggests we should use a typeclass: if we can somehow exploit the lack of an instance to mean that an event is given the wrong callback type, we’ve succeeded.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb11-1" data-line-number="1"><span class="kw">class</span> <span class="dt">On</span> evt obj callback <span class="fu">|</span> evt <span class="ot">-&gt;</span> obj callback <span class="kw">where</span></a>
+<a class="sourceLine" id="cb11-2" data-line-number="2"><span class="ot">  on ::</span> forall e<span class="fu">.</span> evt <span class="ot">-&gt;</span> obj <span class="ot">-&gt;</span> callback <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span></a>
+<a class="sourceLine" id="cb11-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb11-4" data-line-number="4"><span class="kw">data</span> <span class="dt">Success</span> <span class="fu">=</span> <span class="dt">Success</span></a>
+<a class="sourceLine" id="cb11-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb11-6" data-line-number="6"><span class="kw">data</span> <span class="dt">Error</span> <span class="fu">=</span> <span class="dt">Error</span></a>
+<a class="sourceLine" id="cb11-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb11-8" data-line-number="8"><span class="kw">data</span> <span class="dt">Other</span> <span class="fu">=</span> <span class="dt">Other</span></a>
+<a class="sourceLine" id="cb11-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb11-10" data-line-number="10"><span class="kw">instance</span><span class="ot"> onObjError ::</span> <span class="dt">On</span> <span class="dt">Error</span> <span class="dt">Obj</span> (<span class="dt">Eff.Error</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb11-11" data-line-number="11">  on _ <span class="fu">=</span> unsafeOn <span class="st">&quot;error&quot;</span></a></code></pre></div>
+<p>Nope: <code>Could not match type ( le :: LIB_EFFECT | e0 ) with type ( le :: LIB_EFFECT | e01 )</code></p>
+<p>The problem here is that the <code>e</code> in the callback type is not actually the same as the <code>e</code> in the result type.</p>
+<h1 id="fifth-attempt">Fifth attempt</h1>
+<p>Instead of hiding the <code>e</code> behind a quantifier in the class method, let’s factor out the whole result type.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb12-1" data-line-number="1"><span class="kw">class</span> <span class="dt">On</span> evt obj callback out <span class="fu">|</span> evt <span class="ot">-&gt;</span> obj callback out <span class="kw">where</span></a>
+<a class="sourceLine" id="cb12-2" data-line-number="2"><span class="ot">  on ::</span> evt <span class="ot">-&gt;</span> obj <span class="ot">-&gt;</span> callback <span class="ot">-&gt;</span> out</a>
+<a class="sourceLine" id="cb12-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb12-4" data-line-number="4"><span class="kw">data</span> <span class="dt">Success</span> <span class="fu">=</span> <span class="dt">Success</span></a>
+<a class="sourceLine" id="cb12-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb12-6" data-line-number="6"><span class="kw">data</span> <span class="dt">Error</span> <span class="fu">=</span> <span class="dt">Error</span></a>
+<a class="sourceLine" id="cb12-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb12-8" data-line-number="8"><span class="kw">data</span> <span class="dt">Other</span> <span class="fu">=</span> <span class="dt">Other</span></a>
+<a class="sourceLine" id="cb12-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb12-10" data-line-number="10"><span class="kw">instance</span><span class="ot"> onObjError ::</span> <span class="dt">On</span> <span class="dt">Error</span> <span class="dt">Obj</span> (<span class="dt">Eff.Error</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>) (<span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb12-11" data-line-number="11">  on _ <span class="fu">=</span> unsafeOn <span class="st">&quot;error&quot;</span></a></code></pre></div>
+<p>Success! This finally compiles. But why stop here when we can go type-crazy?</p>
+<h1 id="fifth-attempt-alternate">Fifth attempt, alternate</h1>
+<div class="sourceCode" id="cb13"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb13-1" data-line-number="1">foreign <span class="kw">import</span> kind <span class="dt">Event</span></a>
+<a class="sourceLine" id="cb13-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb13-3" data-line-number="3"><span class="kw">data</span> <span class="dt">EventProxy</span> (<span class="ot">e ::</span> <span class="dt">Event</span>) <span class="fu">=</span> <span class="dt">EventProxy</span></a>
+<a class="sourceLine" id="cb13-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb13-5" data-line-number="5"><span class="kw">class</span> <span class="dt">On</span> (<span class="ot">evt ::</span> <span class="dt">Event</span>) obj callback out <span class="fu">|</span> evt <span class="ot">-&gt;</span> obj callback out <span class="kw">where</span></a>
+<a class="sourceLine" id="cb13-6" data-line-number="6"><span class="ot">  on ::</span> forall proxy<span class="fu">.</span> proxy evt <span class="ot">-&gt;</span> obj <span class="ot">-&gt;</span> callback <span class="ot">-&gt;</span> out</a>
+<a class="sourceLine" id="cb13-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb13-8" data-line-number="8">foreign <span class="kw">import</span> data <span class="dt">Success</span> :: <span class="dt">Event</span></a>
+<a class="sourceLine" id="cb13-9" data-line-number="9"></a>
+<a class="sourceLine" id="cb13-10" data-line-number="10">foreign <span class="kw">import</span> data <span class="dt">Error</span> :: <span class="dt">Event</span></a>
+<a class="sourceLine" id="cb13-11" data-line-number="11"></a>
+<a class="sourceLine" id="cb13-12" data-line-number="12">foreign <span class="kw">import</span> data <span class="dt">Other</span> :: <span class="dt">Event</span></a>
+<a class="sourceLine" id="cb13-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb13-14" data-line-number="14"><span class="kw">instance</span><span class="ot"> onObjError ::</span> <span class="dt">On</span> <span class="dt">Error</span> <span class="dt">Obj</span> (<span class="dt">Eff.Error</span> <span class="ot">-&gt;</span> <span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>) (<span class="dt">Eff</span> (<span class="ot">le ::</span> <span class="dt">LIB_EFFECT</span> <span class="fu">|</span> e) <span class="dt">Unit</span>) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb13-15" data-line-number="15">  on _ <span class="fu">=</span> unsafeOn <span class="st">&quot;error&quot;</span></a></code></pre></div>
+<h1 id="usage">Usage</h1>
+<p>Now we can turn this:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb14-1" data-line-number="1">main <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb14-2" data-line-number="2">  obj <span class="ot">&lt;-</span> newObj config</a>
+<a class="sourceLine" id="cb14-3" data-line-number="3">  onSuccess obj \ result <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb14-4" data-line-number="4">    log <span class="st">&quot;Success!&quot;</span></a>
+<a class="sourceLine" id="cb14-5" data-line-number="5">    logShow result</a>
+<a class="sourceLine" id="cb14-6" data-line-number="6">  onError obj \ err <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb14-7" data-line-number="7">    log <span class="st">&quot;Error :(&quot;</span></a>
+<a class="sourceLine" id="cb14-8" data-line-number="8">    log (message err)</a></code></pre></div>
+<p>into this:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb15-1" data-line-number="1">main <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb15-2" data-line-number="2">  obj <span class="ot">&lt;-</span> newObj config</a>
+<a class="sourceLine" id="cb15-3" data-line-number="3">  on success obj \ result <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb15-4" data-line-number="4">    log <span class="st">&quot;Success!&quot;</span></a>
+<a class="sourceLine" id="cb15-5" data-line-number="5">    logShow result</a>
+<a class="sourceLine" id="cb15-6" data-line-number="6">  on error obj \ err <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb15-7" data-line-number="7">    log <span class="st">&quot;Error :(&quot;</span></a>
+<a class="sourceLine" id="cb15-8" data-line-number="8">    log (message err)</a>
+<a class="sourceLine" id="cb15-9" data-line-number="9">  <span class="kw">where</span></a>
+<a class="sourceLine" id="cb15-10" data-line-number="10">    success <span class="fu">=</span> <span class="dt">EventProxy</span><span class="ot"> ::</span> <span class="dt">EventProxy</span> <span class="dt">Success</span></a>
+<a class="sourceLine" id="cb15-11" data-line-number="11">    error <span class="fu">=</span> <span class="dt">EventProxy</span><span class="ot"> ::</span> <span class="dt">EventProxy</span> <span class="dt">Error</span></a></code></pre></div>
+<p>But note that the following wo(uld)n’t compile:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb16-1" data-line-number="1">main <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb16-2" data-line-number="2">  obj <span class="ot">&lt;-</span> newObj config</a>
+<a class="sourceLine" id="cb16-3" data-line-number="3">  on success obj \ err <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb16-4" data-line-number="4">    log <span class="st">&quot;Error :(&quot;</span></a>
+<a class="sourceLine" id="cb16-5" data-line-number="5">    log (message err)</a>
+<a class="sourceLine" id="cb16-6" data-line-number="6">  <span class="kw">where</span></a>
+<a class="sourceLine" id="cb16-7" data-line-number="7">    success <span class="fu">=</span> <span class="dt">EventProxy</span><span class="ot"> ::</span> <span class="dt">EventProxy</span> <span class="dt">Success</span></a></code></pre></div>
+<p>This is because using <code>success</code> tells the compiler the callback <em>must</em> be a success callback – whether that means (as is defined in the instance) that it takes multiple arguments, or that its one argument isn’t an <code>Eff.Error</code>. Also, the use of <code>message</code> tells the compiler that the callback’s argument is an <code>Eff.Error</code>.</p>
+<p>Or you may prefer the original Attempt 5 way:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb17-1" data-line-number="1">main <span class="fu">=</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb17-2" data-line-number="2">  obj <span class="ot">&lt;-</span> newObj config</a>
+<a class="sourceLine" id="cb17-3" data-line-number="3">  on <span class="dt">Success</span> obj \ result <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb17-4" data-line-number="4">    log <span class="st">&quot;Success!&quot;</span></a>
+<a class="sourceLine" id="cb17-5" data-line-number="5">    logShow result</a>
+<a class="sourceLine" id="cb17-6" data-line-number="6">  on <span class="dt">Error</span> obj \ err <span class="ot">-&gt;</span> <span class="kw">do</span></a>
+<a class="sourceLine" id="cb17-7" data-line-number="7">    log <span class="st">&quot;Error :(&quot;</span></a>
+<a class="sourceLine" id="cb17-8" data-line-number="8">    log (message err)</a></code></pre></div>
+<p>¯\_(ツ)_/¯</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>Another method for ruling out bad combinations is to use a row of phantom types to constrain what arguments your functions can take (see: <a href="https://pursuit.purescript.org/packages/purescript-node-streams/3.1.0/docs/Node.Stream#t:Stream">purescript-node-stream</a>’s docs. With this approach you can’t, for example, use <code>onData</code> with a type that’s <code>Writable ()</code>.), and this works great when the types you’re constraining “look the same” – you can differentiate them with phantoms.</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
