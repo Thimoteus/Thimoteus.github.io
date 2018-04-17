@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Better than QuickCheck, not as good as a proof assistant (Part 1)</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Better than QuickCheck, not as good as a proof assistant (Part 1)</h1>
+            <article>
+    <section class="header">
+        Posted on December 29, 2017
+        
+    </section>
+    <section>
+        <h1 id="intro">Intro</h1>
+<p>Suppose you’ve defined a data type, and you know you’ll want to give it some typeclass instances. You also want to make sure its instances are <a href="http://blog.functorial.com/posts/2015-12-06-Counterexamples.html">law-abiding</a>.</p>
+<p>It seems there tend to be two approaches: a <a href="https://github.com/purescript/purescript-quickcheck">quickcheck</a> /<a href="https://github.com/purescript-contrib/purescript-strongcheck">strongcheck</a> approach on one extreme, and on the other, using a <a href="https://arxiv.org/pdf/1512.02102.pdf">proof assistant</a>.</p>
+<p>Not many people talk about a middle-of-the-road approach, which is using yourself as a proof assistant. After all, <a href="https://en.wikipedia.org/wiki/Mathematics">people have been doing it for centuries</a>.</p>
+<h1 id="examples">Examples</h1>
+<p>Let’s start with something simple: we’ll define a simple data-type, and give it an instance of a relatively easy-to-understand typeclass.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">data</span> <span class="dt">NonEmptyArray</span> a <span class="fu">=</span> <span class="dt">NonEmptyArray</span> a (<span class="dt">Array</span> a)</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">infixr</span> <span class="dv">6</span> <span class="dt">NonEmptyArray</span> as <span class="fu">:</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5"><span class="kw">instance</span><span class="ot"> semigroupNonEmptyArray ::</span> <span class="dt">Semigroup</span> (<span class="dt">NonEmptyArray</span> a) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">  append (x <span class="fu">:</span> _) (_ <span class="fu">:</span> ys) <span class="fu">=</span> (x <span class="fu">:</span> ys)</a></code></pre></div>
+<p>Now, this probably isn’t the definition most people have when they think of appending two non-empty arrays together. But we’re not interested in what most people think, we’re interested in whether this is a law-abiding class.</p>
+<p>The only law for a semigroup is that of its operation’s associativity:</p>
+<pre><code>∀ a b c: a &lt;&gt; (b &lt;&gt; c) = (a &lt;&gt; b) &lt;&gt; c</code></pre>
+<p>If you have doubts about whether the instance we defined is law-abiding, I encourage you to try and come up with an answer (either a counterexample or a proof) before reading on.</p>
+<h2 id="simple-example-continued">Simple example continued</h2>
+<p>Our general strategy will be to rewrite the law in terms of our data-type definitions, and “follow the definitions” until we can see that both sides of the equation are in fact equal (or something goes horribly, horribly wrong).</p>
+<p>Left-hand side:</p>
+<ol type="1">
+<li>(x : xs) &lt;&gt; ((y : ys) &lt;&gt; (z : zs)) = – Definition of the law’s LHS</li>
+<li>(x : xs) &lt;&gt; (y : zs) = – Definition of <code>&lt;&gt;</code> applied to the inner parens</li>
+<li>(x : zs) – Definition of <code>&lt;&gt;</code></li>
+</ol>
+<p>Right-hand side:</p>
+<ol type="1">
+<li>((x : xs) &lt;&gt; (y : ys)) &lt;&gt; (z : zs) = – Definitition of the law’s RHS</li>
+<li>(x : ys) &lt;&gt; (z : zs) = – Defintion to <code>&lt;&gt;</code> applied to inner parents</li>
+<li>(x : zs) – Definition of <code>&lt;&gt;</code></li>
+</ol>
+<p>[Question (harder): How many nonequivalent law-abiding instances are there for this data type?]</p>
+<h2 id="slightly-harder">Slightly harder</h2>
+<p>Semigroups are among the simpler typeclasses to think about: they talk about types with simple kinds, they only have one law, and that law is something most people are familiar with already (If I have to multiply 5, 7, and 2 in my head, I find it easier to figure out (5<em>2)</em>7 instead of 5<em>(2</em>7)).</p>
+<p>Let’s look at a slightly tougher typeclass, the one that characterizes functors:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> functorNonEmptyArray ::</span> <span class="dt">Functor</span> <span class="dt">NonEmptyArray</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2">  map f (x <span class="fu">:</span> _) <span class="fu">=</span> f x <span class="fu">:</span> []</a></code></pre></div>
+<p>We need to prove two laws:</p>
+<pre><code>1. map f &lt;&lt;&lt; map g = map (f &lt;&lt;&lt; g)
+2. map id = id</code></pre>
+<p>As before, if you’re unsure as to whether this is law-abiding I encourage you to try and figure it out yourself first.</p>
+<h2 id="slightly-harder-continued">Slightly harder continued</h2>
+<p>Let’s start with the second law, since it looks like it may be simpler to work with:</p>
+<p>LHS:</p>
+<ol type="1">
+<li>map id = – Definition of LHS</li>
+<li> (x : xs) -&gt; map id (x : xs) = – rewriting pointfully</li>
+<li> (x : xs) -&gt; id x : [] - – definition of <code>map</code></li>
+<li> (x : xs) -&gt; x : [] – definition of <code>id</code></li>
+</ol>
+<p>RHS:</p>
+<ol type="1">
+<li>id = – Definition of RHS</li>
+<li> (x : xs) -&gt; (x : xs) – rewrite pointfully</li>
+</ol>
+<p>Now it should be clear what our answer is: this instance is not lawful, and as a counterexample we can use any <code>(x : xs)</code> where <code>xs</code> is an array with more than 0 elements.</p>
+<p>[Question (easier): what’s the (only) correct instance, up to equivalence?]</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

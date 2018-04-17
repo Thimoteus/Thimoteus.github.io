@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>My Hakyll Blog - Better than QuickCheck, not as good as a proof assistant (Part 2)</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <nav>
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h1>Better than QuickCheck, not as good as a proof assistant (Part 2)</h1>
+            <article>
+    <section class="header">
+        Posted on January  3, 2018
+        
+    </section>
+    <section>
+        <h1 id="a-digression-into-logic">A digression into logic</h1>
+<p>In the <a href="2017-12-29-proving-properties.md">previous part</a> of this series, we looked at a simple data type and two typeclasses, proving/disproving that the instances we wrote for those typeclasses followed their respective laws.</p>
+<p>Those examples were fairly simple to reason about, because they relied on equational reasoning – all we did was substitute terms by their definitions until two sides of an equality were syntactically identical.</p>
+<p>But sometimes we need a litte more power in our arsenal. This interlude is meant to be a lightning-fast, nowhere-near-comprehensive introduction to classical propositional logic and natural deduction.</p>
+<h2 id="propositions">Propositions</h2>
+<p>Atomic propositions are sort of like named constants in math, or an argument in a function body. They refer to definite statements, but we may not know what statement that is (in fact, for our purposes it doesn’t matter). As an example, we could treat the statement “It’s raining outside” as an atomic proposition and give it a name (say, 𝑃). We can also refer to “true” and “false”, typically written as ⊤ and ⊥.</p>
+<h2 id="connectives">Connectives</h2>
+<p>Propositions can be constructed out of other propositions using connectives. They have familiar names: “and”, “or”, “implies”, “not”. If we were to try and model the syntax of propositional logic with code, it may look something like this:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">type</span> <span class="dt">Atom</span> <span class="fu">=</span> <span class="dt">Char</span></a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">data</span> <span class="dt">Proposition</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4">  <span class="fu">=</span> <span class="dt">Atom</span> <span class="dt">Atom</span></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">  <span class="fu">|</span> <span class="dt">And</span> <span class="dt">Proposition</span> <span class="dt">Proposition</span></a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">  <span class="fu">|</span> <span class="dt">Or</span> <span class="dt">Proposition</span> <span class="dt">Proposition</span></a>
+<a class="sourceLine" id="cb1-7" data-line-number="7">  <span class="fu">|</span> <span class="dt">Implies</span> <span class="dt">Proposition</span> <span class="dt">Proposition</span></a>
+<a class="sourceLine" id="cb1-8" data-line-number="8">  <span class="fu">|</span> <span class="dt">Not</span> <span class="dt">Proposition</span></a></code></pre></div>
+<p>You might write “and” as “∧”, “or” as “∨”, “implies” as “→” and “not” as “¬”.</p>
+<h2 id="what-is-a-natural-deduction-proof">What is a natural deduction proof?</h2>
+<p>Broadly speaking, a proof is a finite ordered list of propositions such that:</p>
+<ol type="1">
+<li>It has a (possibly empty) starting list of propositions, called assumptions.</li>
+<li>Each subsequent proposition is formed from previously occurring ones by means of a rule, or is a restatement of a previously-occurring proposition.</li>
+</ol>
+<p>The last proposition in a proof is the conclusion.</p>
+<p>So in order to prove things, we need rules (in the previous post we only had the rule of substituting definitions) for generating new propositions.</p>
+<h2 id="rules-of-introduction">Rules of introduction</h2>
+<ol type="1">
+<li>Conjunction (aka “and”)</li>
+</ol>
+<p>Suppose we have a proof such that a proposition 𝑃 occurs at line i, and a proposition 𝑄 occurs at line j. Then at a new line, we can assert 𝑃 ∧ 𝑄. We already proved each one separately, so we can treat them both as a single proposition.</p>
+<ol start="2" type="1">
+<li>Disjunction (aka “or”)</li>
+</ol>
+<p>Suppose our proof has proposition 𝑃 at line i. Then on a new line, we can assert 𝑃 ∨ 𝑄, for any proposition 𝑄 that we like. After all, since we know 𝑃 is true, surely either 𝑃 is true or 𝑄 is true: this is because for the disjunction to be true, it is enough that one of the disjuncts is true.</p>
+<ol start="3" type="1">
+<li>Implication (aka “if-then”)</li>
+</ol>
+<p>This one’s a bit more exotic. At any point in the proof, we can assume a new proposition, but the assumption “costs” us. Essentially, we need to be able to justify the use of the assumption in order to “pay it off”. Implication introduction is one way to do that.</p>
+<p>Supposing we’ve assumed a new proposition 𝑃, then derived a bunch of things from it, ending in 𝑄. Then we can justify the assumption of 𝑃 by concluding 𝑃 → 𝑄.</p>
+<p>As an example:</p>
+<ol type="1">
+<li>𝑃 (Assumption)</li>
+<li><div class="line-block">𝑄 (Assumption in a subproof)</div></li>
+<li><div class="line-block">𝑃 ∧ 𝑄 (Conjunction introduction)</div></li>
+<li>𝑄 → (𝑃 ∧ 𝑄) (Implication introduction)</li>
+</ol>
+<p>Note the use of a “|” character to separate the subproof from the rest.</p>
+<ol start="4" type="1">
+<li>Negation (aka “not”)</li>
+</ol>
+<p>This is a special case of implication introduction. Suppose we have a subproof that starts with 𝑃 and ends in a contradiction (the symbol of which is “⊥”). Then we can conclude the premise of the subproof was faulty, so it must be wrong. In other words, we conclude ¬𝑃.</p>
+<p>(Side note: compare with a function type <code>P -&gt; Void</code>)</p>
+<h2 id="rules-of-elimination">Rules of elimination</h2>
+<ol type="1">
+<li>Conjunction (actually two rules)</li>
+</ol>
+<p>Suppose we have at line i the proposition 𝑃 ∧ 𝑄. Then a) on a new line we may infer 𝑃, b) on a new line we may infer 𝑄.</p>
+<p>This is because if we know both of two things are true, we surely know each one is true by itself.</p>
+<ol start="2" type="1">
+<li>Disjunction</li>
+</ol>
+<p>On line i we have the proposition 𝑃 ∨ 𝑄. Then, suppose we have a subproof that assumes only 𝑃 and concludes 𝑅. Furthermore, we start a new subproof (at the same “level” as the previous one) that assumes only 𝑄 and concludes 𝑅. Then we may conclude 𝑅.</p>
+<p>To illustrate:</p>
+<ol type="1">
+<li>𝐴 – Assumption</li>
+<li>𝑃 ∨ 𝑄 – Assumption</li>
+<li><div class="line-block">𝑃 – Premise</div></li>
+<li><div class="line-block">𝐴 – Subproof conclusion</div></li>
+<li><div class="line-block">𝑄 – New subproof premise</div></li>
+<li><div class="line-block">𝐴 – New subproof conclusion</div></li>
+<li>𝐴 – Conclusion</li>
+</ol>
+<p>(Side note: compare with pattern matching)</p>
+<ol start="3" type="1">
+<li>Implication</li>
+</ol>
+<p>Also known as “modus ponens”. Suppose at line i we have the proposition 𝑃 → 𝑄, and at line j we have the proposition 𝑃. Then on a new line we can conclude 𝑄.</p>
+<p>(Question: can lines i and j be the same?)</p>
+<h2 id="some-short-examples">Some short examples</h2>
+<p>Identity</p>
+<ol type="1">
+<li><div class="line-block">𝐴 – Subproof assumption</div></li>
+<li><div class="line-block">𝐴 – restatement of assumption</div></li>
+<li>𝐴 → 𝐴 – Conclusion</li>
+</ol>
+<p>Tastes like Curry</p>
+<ol type="1">
+<li><div class="line-block">A – Subproof assumption</div></li>
+<li>|| B – Subsubproof assumption</li>
+<li>|| 𝐴 ∧ 𝐵 – Conjunction intro</li>
+<li><div class="line-block">𝐵 → (𝐴 ∧ 𝐵) – Implication intro</div></li>
+<li>𝐴 → (𝐵 → (𝐴 ∧ 𝐵)) – Implication intro</li>
+</ol>
+<p>Explosion</p>
+<ol type="1">
+<li>P P</li>
+</ol>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

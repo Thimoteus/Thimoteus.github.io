@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>thimoteus.github.io - Characteristic Datatypes: An alternative functional representation of ADTs</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <div class="container">
+
+            <header class="sidebar">
+                <div class="fixed">
+                    <div class="logo">
+                        <a href="../">thimoteus.github.io</a>
+                    </div>
+                    <nav>
+                        <ul>
+                            <li>
+                                <a href="../">home</a>
+                            </li>
+                            <li>
+                                <a href="../static/projects.html">projects</a>
+                            </li>
+                            <li>
+                                <a href="../static/contact.html">contact</a>
+                            </li>
+                            <li>
+                                <a href="../archive.html">archive</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </header>
+
+            <main role="main">
+                <div class="article-container">
+                    <h1>Characteristic Datatypes: An alternative functional representation of ADTs</h1>
+                    <article>
+    <section class="header">
+        Posted on April 11, 2018
+        
+    </section>
+    <section>
+        <h1 id="background-church">Background: Church</h1>
+<p>There are several well-known methods of representing data types in the lambda calculus, like the Church encoding:</p>
+<p>Given the usual ADT definition of a <code>List</code>, we can produce its Church encoding and vice versa:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">data</span> <span class="dt">List</span> a <span class="fu">=</span> <span class="dt">Nil</span> <span class="fu">|</span> <span class="dt">Cons</span> a (<span class="dt">List</span> a)</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">type</span> <span class="dt">CList</span> a <span class="fu">=</span> forall r<span class="fu">.</span> (a <span class="ot">-&gt;</span> r <span class="ot">-&gt;</span> r) <span class="ot">-&gt;</span> r <span class="ot">-&gt;</span> r</a>
+<a class="sourceLine" id="cb1-4" data-line-number="4"></a>
+<a class="sourceLine" id="cb1-5" data-line-number="5"><span class="ot">cons ::</span> forall a<span class="fu">.</span> a <span class="ot">-&gt;</span> <span class="dt">CList</span> a <span class="ot">-&gt;</span> <span class="dt">CList</span> a</a>
+<a class="sourceLine" id="cb1-6" data-line-number="6">cons x xs <span class="fu">=</span> \cons' nil' <span class="ot">-&gt;</span> cons' x (xs cons' nil')</a>
+<a class="sourceLine" id="cb1-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb1-8" data-line-number="8"><span class="ot">nil ::</span> forall a<span class="fu">.</span> <span class="dt">CList</span> a</a>
+<a class="sourceLine" id="cb1-9" data-line-number="9">nil <span class="fu">=</span> \_ nil' <span class="ot">-&gt;</span> nil'</a>
+<a class="sourceLine" id="cb1-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb1-11" data-line-number="11"><span class="ot">toList ::</span> <span class="dt">CList</span> <span class="fu">~&gt;</span> <span class="dt">List</span></a>
+<a class="sourceLine" id="cb1-12" data-line-number="12">toList xs <span class="fu">=</span> xs <span class="dt">Cons</span> <span class="dt">Nil</span></a>
+<a class="sourceLine" id="cb1-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb1-14" data-line-number="14"><span class="ot">toCList ::</span> <span class="dt">List</span> <span class="fu">~&gt;</span> <span class="dt">CList</span></a>
+<a class="sourceLine" id="cb1-15" data-line-number="15">toCList (<span class="dt">Cons</span> x xs) <span class="fu">=</span> cons x (toCList xs)</a>
+<a class="sourceLine" id="cb1-16" data-line-number="16">toCList <span class="dt">Nil</span> <span class="fu">=</span> nil</a></code></pre></div>
+<p>The Church encoding identifies a list with its right-fold; this works because, as we’ve seen, all the list’s information is carried in the right-fold.</p>
+<p>As such, it’s possible to define a <code>Data.CList</code> module that uses the Church encoding internally but exports the same API as <code>Data.List</code>.</p>
+<p>It’s this property of the right-fold that I’ll call <em>characteristic</em>.</p>
+<h1 id="background-sets">Background: Sets</h1>
+<p>Usually a characteristic function is defined for sets: Given a set X, its characteristic function χ : X -&gt; 2 is defined as χ(a) = 1 if a ∈ X, χ(a) = 0 otherwise.</p>
+<p>Likewise, we can construct any set from its characteristic function: X = {a | χ(a) = 1}.</p>
+<h1 id="purescript-sets">Purescript: Sets</h1>
+<p>This suggests the following definition:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb2-1" data-line-number="1"><span class="kw">newtype</span> <span class="dt">Set</span> a <span class="fu">=</span> <span class="dt">Set</span> (a <span class="ot">-&gt;</span> <span class="dt">Boolean</span>)</a></code></pre></div>
+<p>This has some interesting differences from <code>Data.Set.Set</code>: for one, it’s contravariant in its argument. In fact, it’s equivalent to <code>Data.Predicate.Predicate</code>. Therefore it has instances for the whole contravariant hierarchy: <code>Divide</code>, <code>Decide</code>, etc.</p>
+<p>Moreover, some very cute looking definitions fall out as well:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="ot">owns ::</span> forall a<span class="fu">.</span> <span class="dt">Set</span> a <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> <span class="dt">Boolean</span></a>
+<a class="sourceLine" id="cb3-2" data-line-number="2">owns (<span class="dt">Set</span> x) <span class="fu">=</span> x</a>
+<a class="sourceLine" id="cb3-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb3-4" data-line-number="4">infix <span class="dv">4</span> owns as ∋</a>
+<a class="sourceLine" id="cb3-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb3-6" data-line-number="6">elem<span class="ot"> ::</span> forall a<span class="fu">.</span> a <span class="ot">-&gt;</span> <span class="dt">Set</span> a <span class="ot">-&gt;</span> <span class="dt">Boolean</span></a>
+<a class="sourceLine" id="cb3-7" data-line-number="7">elem <span class="fu">=</span> flip owns</a>
+<a class="sourceLine" id="cb3-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb3-9" data-line-number="9">infix <span class="dv">4</span> elem as ∈</a>
+<a class="sourceLine" id="cb3-10" data-line-number="10"></a>
+<a class="sourceLine" id="cb3-11" data-line-number="11"><span class="ot">universe ::</span> forall a<span class="fu">.</span> <span class="dt">Set</span> a</a>
+<a class="sourceLine" id="cb3-12" data-line-number="12">universe <span class="fu">=</span> <span class="dt">Set</span> \_ <span class="ot">-&gt;</span> true</a>
+<a class="sourceLine" id="cb3-13" data-line-number="13"></a>
+<a class="sourceLine" id="cb3-14" data-line-number="14"><span class="ot">empty ::</span> forall a<span class="fu">.</span> <span class="dt">Set</span> a</a>
+<a class="sourceLine" id="cb3-15" data-line-number="15">empty <span class="fu">=</span> <span class="dt">Set</span> \_ <span class="ot">-&gt;</span> false</a>
+<a class="sourceLine" id="cb3-16" data-line-number="16"></a>
+<a class="sourceLine" id="cb3-17" data-line-number="17"><span class="ot">complement ::</span> <span class="dt">Set</span> <span class="fu">~&gt;</span> <span class="dt">Set</span></a>
+<a class="sourceLine" id="cb3-18" data-line-number="18">complement x <span class="fu">=</span> <span class="dt">Set</span> \ a <span class="ot">-&gt;</span> not (a ∈ x)</a>
+<a class="sourceLine" id="cb3-19" data-line-number="19"></a>
+<a class="sourceLine" id="cb3-20" data-line-number="20"><span class="ot">union ::</span> forall a<span class="fu">.</span> <span class="dt">Set</span> a <span class="ot">-&gt;</span> <span class="dt">Set</span> a <span class="ot">-&gt;</span> <span class="dt">Set</span> a</a>
+<a class="sourceLine" id="cb3-21" data-line-number="21">union x y <span class="fu">=</span> <span class="dt">Set</span> \ a <span class="ot">-&gt;</span> a ∈ x <span class="fu">||</span> a ∈ y</a>
+<a class="sourceLine" id="cb3-22" data-line-number="22"></a>
+<a class="sourceLine" id="cb3-23" data-line-number="23"><span class="ot">intersection ::</span> forall a<span class="fu">.</span> <span class="dt">Set</span> a <span class="ot">-&gt;</span> <span class="dt">Set</span> a <span class="ot">-&gt;</span> <span class="dt">Set</span> a</a>
+<a class="sourceLine" id="cb3-24" data-line-number="24">intersection x y <span class="fu">=</span> <span class="dt">Set</span> \ a <span class="ot">-&gt;</span> a ∈ x <span class="fu">&amp;&amp;</span> a ∈ y</a>
+<a class="sourceLine" id="cb3-25" data-line-number="25"></a>
+<a class="sourceLine" id="cb3-26" data-line-number="26"><span class="kw">instance</span><span class="ot"> heytingAlgebraSet ::</span> <span class="dt">HeytingAlgebra</span> (<span class="dt">Set</span> a) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb3-27" data-line-number="27">  tt <span class="fu">=</span> universe</a>
+<a class="sourceLine" id="cb3-28" data-line-number="28">  ff <span class="fu">=</span> empty</a>
+<a class="sourceLine" id="cb3-29" data-line-number="29">  conj <span class="fu">=</span> intersection</a>
+<a class="sourceLine" id="cb3-30" data-line-number="30">  disj <span class="fu">=</span> union</a>
+<a class="sourceLine" id="cb3-31" data-line-number="31">  not <span class="fu">=</span> complement</a>
+<a class="sourceLine" id="cb3-32" data-line-number="32">  implies x y <span class="fu">=</span> complement x <span class="ot">`union`</span> y</a></code></pre></div>
+<p>As an example, <code>union</code> reads like it isn’t even written in code: “The union of x and y is the set of all a such that a is in x or a is in y”.</p>
+<p>Unfortunately, with this representation it’s almost always impossible to recover the “original” set in PS-land. That’s because we can’t actually translate “X = {a | χ(a) = 1}” into a PS function <code>recover :: Characteristic.Set ~&gt; Traditional.Set</code>.</p>
+<h1 id="purescript-maps">Purescript: Maps</h1>
+<p><code>Data.Map</code> has a characteristic function in its API: <code>lookup :: forall k v. Ord k =&gt; k -&gt; Map k v -&gt; Maybe v</code>.</p>
+<p>We can translate it into a characteristic definition:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb4-1" data-line-number="1"><span class="kw">newtype</span> <span class="dt">Map</span> k v <span class="fu">=</span> <span class="dt">Map</span> (k <span class="ot">-&gt;</span> <span class="dt">Maybe</span> v)</a>
+<a class="sourceLine" id="cb4-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb4-3" data-line-number="3">lookup<span class="ot"> ::</span> forall k v<span class="fu">.</span> k <span class="ot">-&gt;</span> <span class="dt">Map</span> k v <span class="ot">-&gt;</span> <span class="dt">Maybe</span> v</a>
+<a class="sourceLine" id="cb4-4" data-line-number="4">lookup key (<span class="dt">Map</span> m) <span class="fu">=</span> m key</a></code></pre></div>
+<p>(Yes, I know this is the same as <code>Star Maybe</code>).</p>
+<p>This has some interesting properties that aren’t shared with the traditional <code>Map</code> as well:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb5-1" data-line-number="1"><span class="kw">instance</span><span class="ot"> semigroupoidMap ::</span> <span class="dt">Semigroupoid</span> <span class="dt">Map</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2">  compose (<span class="dt">Map</span> f) (<span class="dt">Map</span> g) <span class="fu">=</span> <span class="dt">Map</span> (f <span class="fu">&lt;=&lt;</span> g)</a>
+<a class="sourceLine" id="cb5-3" data-line-number="3"></a>
+<a class="sourceLine" id="cb5-4" data-line-number="4"><span class="kw">instance</span><span class="ot"> categoryMap ::</span> <span class="dt">Category</span> <span class="dt">Map</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">  id <span class="fu">=</span> <span class="dt">Map</span> <span class="dt">Just</span></a>
+<a class="sourceLine" id="cb5-6" data-line-number="6"></a>
+<a class="sourceLine" id="cb5-7" data-line-number="7"><span class="kw">instance</span><span class="ot"> profunctorMap ::</span> <span class="dt">Profunctor</span> <span class="dt">Map</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb5-8" data-line-number="8">  dimap ab cd (<span class="dt">Map</span> bc) <span class="fu">=</span> <span class="dt">Map</span> \a <span class="ot">-&gt;</span> cd <span class="fu">&lt;$&gt;</span> bc (ab a)</a></code></pre></div>
+<p>Unfortunately its representation (specifically the polymorphism of the first type variable in its constructor) means we’re left without important instances like <code>Eq</code> and <code>Show</code>.</p>
+<p>We’d need to constrain the type of <code>k</code> so that we could exhaustively search values inhabiting it, but <code>instance eqMap :: (Bounded k, Enum k, Eq k, Eq v) &lt;= Eq (Map k v)</code>, while sufficient, still wouldn’t let us check equality between two values of type <code>Map String a</code>.</p>
+<p>On the other hand, we can also define maps with infinitely many keys.</p>
+<h1 id="purescript-sequences">Purescript: Sequences</h1>
+<p>For a general linear, “order and multiplicity matters” structure like a sequence, we’ve already seen that a right-fold is characteristic. But so is another frequently used function: <code>index :: forall a. Sequence a -&gt; Int -&gt; Maybe a</code>.</p>
+<p><code>index</code> is characteristic because, by convention, sequences are indexed starting at 0. So we can merely iterate through the indices, pulling out elements until we hit a <code>Nothing</code>.</p>
+<p>This means our definition will be a) equivalent to <code>Map Int</code>, and b) since we’re following convention, <code>Show</code>, <code>Eq</code> and friends suddenly become tractable.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb6-1" data-line-number="1"><span class="kw">newtype</span> <span class="dt">Sequence</span> a <span class="fu">=</span> <span class="dt">Sequence</span> (<span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> a)</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb6-3" data-line-number="3">index<span class="ot"> ::</span> forall a<span class="fu">.</span> <span class="dt">Sequence</span> a <span class="ot">-&gt;</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> a</a>
+<a class="sourceLine" id="cb6-4" data-line-number="4">index (<span class="dt">Sequence</span> xs) <span class="fu">=</span> xs</a>
+<a class="sourceLine" id="cb6-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb6-6" data-line-number="6"><span class="kw">infixl</span> <span class="dv">8</span> index as <span class="fu">!!</span></a>
+<a class="sourceLine" id="cb6-7" data-line-number="7"></a>
+<a class="sourceLine" id="cb6-8" data-line-number="8"><span class="kw">instance</span><span class="ot"> eqSequence ::</span> <span class="dt">Eq</span> a <span class="ot">=&gt;</span> <span class="dt">Eq</span> (<span class="dt">Sequence</span> a) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb6-9" data-line-number="9">  eq x y <span class="fu">=</span> go <span class="dv">0</span> <span class="kw">where</span></a>
+<a class="sourceLine" id="cb6-10" data-line-number="10">    go n</a>
+<a class="sourceLine" id="cb6-11" data-line-number="11">      <span class="fu">|</span> <span class="dt">Just</span> a <span class="ot">&lt;-</span> x <span class="fu">!!</span> n</a>
+<a class="sourceLine" id="cb6-12" data-line-number="12">      , <span class="dt">Just</span> b <span class="ot">&lt;-</span> y <span class="fu">!!</span> n</a>
+<a class="sourceLine" id="cb6-13" data-line-number="13">      , a <span class="fu">==</span> b <span class="fu">=</span> go (n <span class="fu">+</span> <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb6-14" data-line-number="14">      <span class="fu">|</span> <span class="dt">Just</span> a <span class="ot">&lt;-</span> x <span class="fu">!!</span> n</a>
+<a class="sourceLine" id="cb6-15" data-line-number="15">      , <span class="dt">Just</span> b <span class="ot">&lt;-</span> y <span class="fu">!!</span> n <span class="fu">=</span> a <span class="fu">==</span> b</a>
+<a class="sourceLine" id="cb6-16" data-line-number="16">      <span class="fu">|</span> <span class="dt">Just</span> _ <span class="ot">&lt;-</span> x <span class="fu">!!</span> n</a>
+<a class="sourceLine" id="cb6-17" data-line-number="17">      , <span class="dt">Nothing</span> <span class="ot">&lt;-</span> y <span class="fu">!!</span> n <span class="fu">=</span> false</a>
+<a class="sourceLine" id="cb6-18" data-line-number="18">      <span class="fu">|</span> <span class="dt">Nothing</span> <span class="ot">&lt;-</span> x <span class="fu">!!</span> n</a>
+<a class="sourceLine" id="cb6-19" data-line-number="19">      , <span class="dt">Just</span> _ <span class="ot">&lt;-</span> y <span class="fu">!!</span> n <span class="fu">=</span> false</a>
+<a class="sourceLine" id="cb6-20" data-line-number="20">      <span class="fu">|</span> otherwise <span class="fu">=</span> true</a></code></pre></div>
+<p>Note that by losing the <code>Maybe</code> we can force a <code>Sequence</code> to be very large – defined for every possible <code>Int</code> value.</p>
+<h1 id="purescript-trees">Purescript: Trees</h1>
+<p>Suppose we have the following definition:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb7-1" data-line-number="1"><span class="kw">data</span> <span class="dt">Tree</span> a <span class="fu">=</span> <span class="dt">Tree</span> a (<span class="dt">List</span> (<span class="dt">Tree</span> a))</a></code></pre></div>
+<p>Now, there’s no canonical <code>Tree</code> type in the core or contrib libraries, so we’re flying a little blind. But maybe we get some inspiration from our <code>Sequence</code> type.</p>
+<p>With <code>Sequence</code>, our characteristic function took an index as input and returned the element at that index, if it exists. We can do something similar for trees. But what would an element’s index be in a tree? Basically, we need it to specify the “location” an element inhabits.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb8-1" data-line-number="1"><span class="kw">newtype</span> <span class="dt">Tree</span> a <span class="fu">=</span> <span class="dt">Tree</span> (<span class="dt">Sequence</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> a)</a>
+<a class="sourceLine" id="cb8-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb8-3" data-line-number="3"><span class="ot">path ::</span> forall a<span class="fu">.</span> <span class="dt">Tree</span> a <span class="ot">-&gt;</span> <span class="dt">Sequence</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Maybe</span> a</a>
+<a class="sourceLine" id="cb8-4" data-line-number="4">path (<span class="dt">Tree</span> t) <span class="fu">=</span> t</a>
+<a class="sourceLine" id="cb8-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb8-6" data-line-number="6"><span class="kw">infixl</span> <span class="dv">8</span> path as <span class="fu">!!!</span></a></code></pre></div>
+<p>A path is just a sequence of (horizontal) indices that go through a tree.</p>
+<p>Imagine we have the following representation of a tree, with root <code>r</code>:</p>
+<pre><code>    r
+   / \
+  a   b
+ /   / \
+c   d   e</code></pre>
+<p>Then the path to <code>r</code> is just the empty sequence <code>()</code>, <code>a</code> gets <code>(0)</code>, and <code>e</code> gets <code>(1, 1)</code>.</p>
+<p>Again, like the case with sequences we’re adopting some conventions here:</p>
+<ol type="1">
+<li>Indices start at 0</li>
+<li>Indices at any given level are contiguous</li>
+<li>If the path <code>(x[0], x[1], ..., x[n], x[n+1])</code> is defined, so is the path <code>(x[0], x[1], ..., x[n])</code>.</li>
+</ol>
+<p>These properties of “well-formed trees” mean we can, again, define <code>eq</code> between trees.</p>
+    </section>
+</article>
+
+                    <div class="top">
+                        <a href="#">
+                            <button>
+                                Top
+                            </button>
+                        </a>
+                    </div>
+                </div>
+            </main>
+
+        </div>
+    </body>
+</html>
