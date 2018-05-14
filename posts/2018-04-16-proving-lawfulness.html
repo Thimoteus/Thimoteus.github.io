@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>thimoteus.github.io - How Do I Know My Instances Are Lawful? Proving Lawfulness of Various Classes</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <div class="container">
+
+            <header class="sidebar">
+                <div class="fixed">
+                    <div class="logo">
+                        <a href="../">thimoteus.github.io</a>
+                    </div>
+                    <nav>
+                        <ul>
+                            <li>
+                                <a href="../">home</a>
+                            </li>
+                            <li>
+                                <a href="../static/projects.html">projects</a>
+                            </li>
+                            <li>
+                                <a href="../static/contact.html">contact</a>
+                            </li>
+                            <li>
+                                <a href="../archive.html">archive</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </header>
+
+            <main role="main">
+                <div class="article-container">
+                    <h1>How Do I Know My Instances Are Lawful? Proving Lawfulness of Various Classes</h1>
+                    <article>
+    <section class="header">
+        Posted on April 16, 2018
+        
+    </section>
+    <section>
+        <h1 id="motivation">Motivation</h1>
+<p>A while ago, I decided to implement comonad support into my <a href="https://github.com/Thimoteus/purescript-transformerless">purescript-transformerless</a> library. Unfortunately, I’ve never had a moment where I thought “you know … this situation calls for a comonad!” Hence, since my experience with them was limited, I wasn’t sure I was providing the “correct” instances and definitions. Moreover, I definitely did NOT want to manually transform the comonads in <code>Control.Comonad.{Env, Store, Traced}</code> by changing <code>w</code> to <code>Identity</code> and seeing what came out – although this is in the spirit of transformerless comonads, it’s definitely not fun.</p>
+<p>Luckily for me, there are laws for comonads (and laws for <code>Traced</code>), so with a little luck it should be enough to prove my implementations satisfied those laws.</p>
+<h1 id="background-logic">Background: Logic</h1>
+<p>You may have heard that “propositions are types”, also known as the Curry-Howard isomorphism. It basically relates certain type systems used in programming with certain logics: a type can be seen as a proposition in the corresponding logic, and a value inhabiting that type can be seen as a proof of said proposition.</p>
+<p>However, this by itself is not enough to prove that an instance is law-abiding: this is because compilers tend not to have the ability to prove instances are law-abiding, they can merely confirm an expression is well-typed or that it has the type you claim it does. Just because your custom data-type <code>MyMonad</code> has an instance of <code>Monad</code> doesn’t mean it satisfies the <code>ap = apply</code> law, for example.</p>
+<p>On the other hand, we can use the same equivalent logic to (dis)prove our instances’ lawfulness.</p>
+<h2 id="an-easy-example">An easy example</h2>
+<p>Let’s start with something simple: showing that the <code>Env</code> comonad is a lawful <code>Functor</code>, without delegating the instance to the compiler via <code>derive instance</code>.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode haskell"><code class="sourceCode haskell"><a class="sourceLine" id="cb1-1" data-line-number="1"><span class="kw">newtype</span> <span class="dt">Env</span> e a <span class="fu">=</span> <span class="dt">Env</span> (<span class="dt">Tuple</span> e a)</a>
+<a class="sourceLine" id="cb1-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb1-3" data-line-number="3"><span class="kw">instance</span><span class="ot"> functorEnv ::</span> <span class="dt">Functor</span> (<span class="dt">Env</span> e) <span class="kw">where</span></a>
+<a class="sourceLine" id="cb1-4" data-line-number="4"><span class="ot">  map ::</span> forall a b<span class="fu">.</span> (a <span class="ot">-&gt;</span> b) <span class="ot">-&gt;</span> <span class="dt">Env</span> e a <span class="ot">-&gt;</span> <span class="dt">Env</span> e b</a>
+<a class="sourceLine" id="cb1-5" data-line-number="5">  map f (<span class="dt">Env</span> (<span class="dt">Tuple</span> e a)) <span class="fu">=</span> <span class="dt">Env</span> (<span class="dt">Tuple</span> e (f a))</a></code></pre></div>
+<p>You may notice this instance is equivalent to that of the underlying <code>Tuple</code> one. In other words, we could have defined it as <code>map f (Env e) = Env (map f e)</code>.</p>
+<p>So, the <code>Functor</code> typeclass has two laws:</p>
+<ol type="1">
+<li><code>map id = id</code></li>
+<li><code>map f &lt;&lt;&lt; map g = map (f &lt;&lt;&lt; g)</code></li>
+</ol>
+<p>This is where “equational reasoning” comes in handy: it’s very powerful, while also being quite simple.</p>
+<p>In the following proof, each line is equivalent to the one after via equality. If you wish, you can mentally insert an <code>=</code> after each line, linking it to the next.</p>
+<p>Proof of 1)</p>
+<ol type="1">
+<li><code>map id</code> – Left-hand side</li>
+<li><code>\ (Env (Tuple e a)) -&gt; map id (Env (Tuple e a))</code> – η expansion</li>
+<li><code>\ (Env (Tuple e a)) -&gt; Env (Tuple e (id a))</code> – Definition of <code>map</code></li>
+<li><code>\ (Env (Tuple e a)) -&gt; Env (Tuple e a))</code> – Definition of <code>id</code></li>
+<li><code>(\ x -&gt; x) :: forall e a. Env e a -&gt; Env e a</code> – Renaming</li>
+<li><code>id</code> – Right-hand side</li>
+</ol>
+<p>Proof of 2)</p>
+<ol type="1">
+<li><code>map f &lt;&lt;&lt; map g</code> – Left-hand side</li>
+<li><code>\ (Env (Tuple e a)) -&gt; (map f &lt;&lt;&lt; map g) (Env (Tuple e a))</code> – η expansion</li>
+<li><code>\ (Env (Tuple e a)) -&gt; map f (map g (Env (Tuple e a)))</code> – Definition of <code>compose</code></li>
+<li><code>\ (Env (Tuple e a)) -&gt; map f (Env (Tuple e (g a)))</code> – Definition of <code>map g</code></li>
+<li><code>\ (Env (Tuple e a)) -&gt; Env (Tuple e (f (g a)))</code> – Definition of <code>map f</code></li>
+<li><code>\ (Env (Tuple e a)) -&gt; Env (Tuple e ((f &lt;&lt;&lt; g) a))</code> – Definition of <code>compose</code></li>
+<li><code>\ (Env (Tuple e a)) -&gt; map (f &lt;&lt;&lt; g) (Env (Tuple e a))</code> – Definition of <code>map</code></li>
+<li><code>map (f &lt;&lt;&lt; g)</code> – η reduction</li>
+</ol>
+<p>WIP</p>
+    </section>
+</article>
+
+                    <div class="top">
+                        <a href="#">
+                            <button>
+                                Top
+                            </button>
+                        </a>
+                    </div>
+                </div>
+            </main>
+
+        </div>
+    </body>
+</html>
