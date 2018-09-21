@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>thimoteus.github.io - Roll Your Own Existential Types in PureScript (Without Using unsafeCoerce)</title>
+        <link rel="stylesheet" href="../css/default.css" />
+    </head>
+    <body>
+        <div class="container">
+
+            <header class="sidebar">
+                <div class="fixed">
+                    <div class="logo">
+                        <a href="../">thimoteus.github.io</a>
+                    </div>
+                    <nav>
+                        <ul>
+                            <li>
+                                <a href="../">home</a>
+                            </li>
+                            <li>
+                                <a href="../static/projects.html">projects</a>
+                            </li>
+                            <li>
+                                <a href="../static/contact.html">contact</a>
+                            </li>
+                            <li>
+                                <a href="../archive.html">archive</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </header>
+
+            <main role="main">
+                <div class="article-container">
+                    <h1>Roll Your Own Existential Types in PureScript (Without Using unsafeCoerce)</h1>
+                    <article>
+    <section class="header">
+        Posted on September 21, 2018
+        
+    </section>
+    <section>
+        <h1 id="motivation">Motivation</h1>
+<p>Haskell has a type extension called <code>ExistentialQuantification</code>; as such there’s plenty of stuff written about existential types in Haskell (and to be honest, a good chunk will is applicable to PureScript, including when you might want to use them).</p>
+<p>However, PureScript doesn’t have any compiler support for existential types. So we have to implement them ourselves using the tools the compiler does give us.</p>
+<h2 id="background---existential-quantification-in-logic">Background - existential quantification in logic</h2>
+<p>In first-order (classical) logic, there are two quantifiers, ‘∀’ (the universal quantifier) and ‘∃’ (the existential quantifier). Briefly, the universal quantifier lets you talk about everything in your domain of discourse (“for all”, “every”, etc) and the existential one lets you talk about some things (“for some”, “there exists”, “there’s at least one”, etc.)</p>
+<p>They are not equivalent. However, paired with logical negation “¬”, it’s possible to translate between the two. The rules can be thought of as “¬∀ = ∃¬” (or more formally “¬∀x(P x) ⇔ ∃x(¬(P x)”): “‘it is not the case that everyone is standing up’ is the same as ‘there is someone who is not standing up’”.</p>
+<p>In a classical logic, we have double negation elimination (¬¬P → P). With this it’s enough to express an existential quantifier using only negation and a universal quantifier:</p>
+<ol type="1">
+<li>∃x (P x) ⇔</li>
+<li>¬¬∃x (P x) ⇔</li>
+<li>¬∀x¬ (P x)</li>
+</ol>
+<p>(in an intuitionistic setting, we don’t have double negation elimination, but we do have the inverse P → ¬¬P).</p>
+<h2 id="background---negation-in-functional-programming-and-logic">Background - negation in functional programming (and logic)</h2>
+<p>Of course, we don’t usually think of having negation types in programming. That’s where another trick from logic comes into play: we also have two propositions, ⊤ (top or truth) and ⊥ (bottom, false, falsum). ⊤ is, of course, always true, and ⊥ is always false. Then we can simulate the negation of a proposition P by the proposition P → ⊥ (P implies false).</p>
+<p>In PureScript, we have bottom and top types – they’re known as <code>Void</code> and <code>Unit</code>. Any top type is isomorphic to any other top type, and any bottom type is isomorphic to any other bottom type (briefly, they can be completely characterized by their morphisms – by functions with them as their domain or codomain, and using these you can go from one top/bottom type to any other top/bottom type, respectively).</p>
+<p>Hence, the negation of a type <code>a</code> is the type <code>a -&gt; void</code>, where <code>void</code> is any bottom type (like <code>Void</code>).</p>
+<h1 id="implementation">Implementation</h1>
+<p>The last piece of the puzzle is what I think of more as a mnemonic than anything. Like we discovered above, all bottom types are isomorphic – so we can also create the bottom type <code>type Bottom = ∀ a. a</code>. So we’ll use something similar to construct our existential type. We already know we want to use the form “¬∀¬”, since we have universal quantification and we know how to construct negations. However, using <code>Void</code> by itself is not much use, so we’ll use a rank-2 type instead:</p>
+<pre><code>type Exists f = ∀ r. (∀ a. f a -&gt; r) -&gt; r</code></pre>
+<p>or,</p>
+<pre><code>newtype Exists f = Exists (∀ r. (∀ a. f a -&gt; r) -&gt; r)</code></pre>
+<h1 id="usage">Usage</h1>
+<p>One of the canonical examples of existential type usage is with the typeclass <code>Show</code>:</p>
+<pre><code>newtype Showable = Showable (forall r. (forall a. Show a =&gt; a -&gt; r) -&gt; r)</code></pre>
+<p>(Question: can we write this using the type <code>Exists</code> from above?) Then we can write a smart constructor:</p>
+<pre><code>mkShowable :: ∀ a. Show a -&gt; Showable
+mkShowable a = Showable (_ $ a)</code></pre>
+<p>What can we do with a value of type <code>Showable</code>? Well, all we can do is <code>show</code> it!</p>
+<pre><code>instance showShowable :: Show Showable where
+  show (Showable a) = a show</code></pre>
+<p>And then we can create a “heterogeneous” array of <code>Showable</code>s:</p>
+<pre><code>showables :: Array Showable
+showables = [mkShowable 1, mkShowable unit, mkShowable &quot;hello&quot;]</code></pre>
+    </section>
+</article>
+
+                    <div class="top">
+                        <a href="#">
+                            <button>
+                                Top
+                            </button>
+                        </a>
+                    </div>
+                </div>
+            </main>
+
+        </div>
+    </body>
+</html>
